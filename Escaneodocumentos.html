@@ -7,40 +7,37 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  
+
   <div class="container">
     <h1>📄 Escaneo de Documentación</h1>
     <div style="display: flex; justify-content: flex-end; margin: 1rem;">
-  <a href="dashboard.html">
-    <button class="back-btn">⬅️ Regresar</button>
-  </a>
-</div>
+      <a href="dashboard.html">
+        <button class="back-btn">⬅️ Regresar</button>
+      </a>
+    </div>
+  </div>
 
-</div>
-    <section>
-      <h2>🗂 DOCUMENTACIÓN GENERAL</h2>
-      <ul id="doc-general">
-        <!-- Ítems generados dinámicamente -->
-      </ul>
-    </section>
+  <section>
+    <h2>🗂 DOCUMENTACIÓN GENERAL</h2>
+    <ul id="doc-general">
+      <!-- Ítems generados dinámicamente -->
+    </ul>
+  </section>
 
-    <section>
-      <h2>🏢 DOCUMENTACIÓN DE LA EMPRESA</h2>
-      <ul id="doc-empresa">
-        <!-- Ítems generados dinámicamente -->
-      </ul>
-    </section>
+  <section>
+    <h2>🏢 DOCUMENTACIÓN DE LA EMPRESA</h2>
+    <ul id="doc-empresa">
+      <!-- Ítems generados dinámicamente -->
+    </ul>
+  </section>
 
-    <div class="zip-controls">
-  <label for="nombreManual">👤 Número de IMSS:</label>
-  <input type="text" id="zipName" placeholder="Nombre del archivo ZIP" />
-  <button id="generateZip">📦 Generar ZIP</button>
-  <button id="btnWhatsApp">📲 Compartir por WhatsApp</button>
-  <button id="sendEmail">📧 Enviar por Correo</button>
-  <button id="shareDrive">☁️ Subir a Drive</button>
-</div>
-
-
+  <div class="zip-controls">
+    <label for="zipName">👤 Número de IMSS:</label>
+    <input type="text" id="zipName" placeholder="Nombre del archivo ZIP" />
+    <button id="generateZip">📦 Generar ZIP</button>
+    <button id="btnWhatsApp">📲 Compartir por WhatsApp</button>
+    <button id="sendEmail">📧 Enviar por Correo</button>
+  </div>
 
   <!-- 📷 Modal de Cámara -->
   <div class="camera-modal" id="cameraModal" hidden>
@@ -51,15 +48,35 @@
     <canvas id="snapshotCanvas" hidden></canvas>
   </div>
 
+  <!-- ✅ Toast flotante de confirmación -->
+  <div id="toast" class="toast" style="display: none;">✅ Enlace copiado al portapapeles</div>
+
+  <!-- Dependencias JS -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="script1.js"></script>
   <script src="https://apis.google.com/js/api.js"></script>
 
-  <!-- Firebase App (core) -->
-<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
-<!-- Firebase Storage -->
-<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-storage-compat.js"></script>
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-storage-compat.js"></script>
 
+  <!-- ✅ Tu configuración de Firebase -->
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyC_WhpJxW6V6C6stDeyv6wGsj4-2rR2edQ",
+      authDomain: "appreclutameinto.firebaseapp.com",
+      databaseURL: "https://appreclutameinto-default-rtdb.firebaseio.com",
+      projectId: "appreclutameinto",
+      storageBucket: "appreclutameinto.appspot.com",
+      messagingSenderId: "447789838113",
+      appId: "1:447789838113:web:41d7c2ba5cd6bb304e5860",
+      measurementId: "G-M9LWSVYNHC"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const storage = firebase.storage();
+  </script>
 
+  <!-- Tu script principal -->
+  <script src="script1.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
