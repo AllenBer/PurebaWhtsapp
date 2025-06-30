@@ -4,7 +4,7 @@ const firebaseConfig = {
   authDomain: "appreclutameinto.firebaseapp.com",
   databaseURL: "https://appreclutameinto-default-rtdb.firebaseio.com",
   projectId: "appreclutameinto",
-  storageBucket: "appreclutameinto.firebasestorage.app",
+storageBucket: "appreclutameinto.appspot.com", // ✅ Correcto
   messagingSenderId: "447789838113",
   appId: "1:447789838113:web:41d7c2ba5cd6bb304e5860",
   measurementId: "G-M9LWSVYNHC"
