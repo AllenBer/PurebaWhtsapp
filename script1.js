@@ -127,51 +127,52 @@ document.getElementById("generateZip").onclick = async () => {
 
   alert("✅ ZIP generado y descargado. Puedes compartirlo por WhatsApp, correo o Drive.");
 };
+ ////enviar archivo por whatsapp
+document.getElementById("btnWhatsApp").addEventListener("click", async () => {
+  const zipName = document.getElementById("zipName").value.trim();
 
-document.getElementById("btnWhatsApp").onclick = async () => {
-  if (!zipBlob) return alert("Primero genera el ZIP.");
-  const baseName = document.getElementById("zipName").value.trim() || "documentos";
-  const fecha = new Date().toISOString().slice(0, 10);
-  const nombreZip = `${baseName}_${fecha}.zip`;
-  const nombreTrabajador = prompt("Nombre del trabajador:");
+  if (!zipName) {
+    alert("Por favor ingresa el número de IMSS o nombre para el ZIP.");
+    return;
+  }
 
+  // Asegúrate de que ya se haya generado y subido el archivo ZIP
+  const fileRef = firebase.storage().ref().child(`${zipName}.zip`);
   try {
-    const file = new File([zipBlob], nombreZip, { type: "application/zip" });
-    const storageRef = firebase.storage().ref(`zips/${nombreZip}`);
-    await storageRef.put(file);
-    const downloadURL = await storageRef.getDownloadURL();
-
-    const mensaje = encodeURIComponent(
-      `Hola, aquí tienes el ZIP con documentos del trabajador ${nombreTrabajador || ""}:%0A${downloadURL}`
-    );
-    window.open(`https://wa.me/?text=${mensaje}`, "_blank");
+    const url = await fileRef.getDownloadURL();
+    const mensaje = `Hola, aquí tienes el archivo ZIP de documentación:\n📎 ${url}`;
+    const whatsappURL = `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
+    window.open(whatsappURL, "_blank");
   } catch (error) {
-    console.error("❌ Error al subir el archivo a Firebase:", error);
+    console.error("❌ Error obteniendo el enlace:", error);
     alert("❌ No se pudo subir ni generar el enlace de descarga.");
   }
-};
+});
 
-document.getElementById("sendEmail").onclick = async () => {
-  if (!zipBlob) return alert("Primero genera el ZIP.");
-  const baseName = document.getElementById("zipName").value.trim() || "documentos";
-  const fecha = new Date().toISOString().slice(0, 10);
-  const zipName = `${baseName}_${fecha}`;
-  const link = await uploadZipToDrive(zipBlob, zipName + ".zip");
-  if (!link) return;
-  const subject = encodeURIComponent("📁 Documentos escaneados");
-  const body = encodeURIComponent(`Hola,%0A%0AAquí tienes el ZIP:%0A${link}`);
-  window.location.href = `mailto:?subject=${subject}&body=${body}`;
-};
+//Enviar archivo por correo electronico 
+document.getElementById("sendEmail").addEventListener("click", async () => {
+  const zipName = document.getElementById("zipName").value.trim();
 
-document.getElementById("shareDrive").onclick = async () => {
-  if (!zipBlob) return alert("Primero genera el ZIP.");
-  const baseName = document.getElementById("zipName").value.trim() || "documentos";
-  const fecha = new Date().toISOString().slice(0, 10);
-  const zipName = `${baseName}_${fecha}.zip`;
-  const link = await uploadZipToDrive(zipBlob, zipName);
-  if (!link) return;
-  alert(`✅ Archivo subido a Google Drive:%0A${link}`);
-};
+  if (!zipName) {
+    alert("Por favor ingresa el número de IMSS o nombre para el ZIP.");
+    return;
+  }
+
+  const fileRef = firebase.storage().ref().child(`${zipName}.zip`);
+  try {
+    const url = await fileRef.getDownloadURL();
+
+    // Cuerpo y asunto del correo
+    const subject = encodeURIComponent("📎 Archivo ZIP de documentación");
+    const body = encodeURIComponent(`Hola,\n\nAquí tienes el archivo ZIP:\n${url}`);
+
+    // Abre el cliente de correo por defecto (Gmail, Outlook, etc.)
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  } catch (error) {
+    console.error("❌ Error subiendo a Firebase:", error);
+    alert("❌ Error subiendo o generando enlace.");
+  }
+});
 
 function initGoogleAPI() {
   gapi.load('client:auth2', async () => {
