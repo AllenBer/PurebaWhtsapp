@@ -18,7 +18,7 @@ let authInstance;
 const images = {};
 let zipBlob = null;
 
-function compressImage(blob, maxWidth = 640, quality = 0.5) {
+function compressImage(blob, maxWidth = 700, quality = 0.8) {
   return new Promise((resolve) => {
     const img = new Image();
     const url = URL.createObjectURL(blob);
