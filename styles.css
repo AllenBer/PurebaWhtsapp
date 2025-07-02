@@ -166,7 +166,6 @@ button:hover {
       to {bottom: 0; opacity: 0;}
     }
     /* Estilos base para el modal de cámara */
-/* Estilos base para el modal de cámara */
 .camera-modal {
   position: fixed;
   top: 0;
