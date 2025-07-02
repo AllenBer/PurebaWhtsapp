@@ -1,231 +1,226 @@
-body {
-  font-family: 'Segoe UI', sans-serif;
-  background: linear-gradient(135deg, #f0f4f8, #d9e4f5);
-  margin: 0;
-  padding: 2rem;
-  color: #333;
-}
-.container {
-  max-width: 800px;
-  margin: auto;
-  background: white;
-  padding: 2rem;
-  border-radius: 12px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-}
-h1, h2 {
-  color: #2b4c7e;
-}
-ul {
-  list-style: none;
-  padding: 0;
-}
-li {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #eef2f7;
-  margin-bottom: 10px;
-  padding: 0.8rem;
-  border-radius: 8px;
-}
-button {
-  background: #2b6cb0;
-  color: white;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-button:hover {
-  background: #2c5282;
-}
-.zip-controls {
-  margin-top: 2rem;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.doc-label {
-  flex: 1;
-}
-.doc-status {
-  font-size: 1.5rem;
-  margin: 0 1rem;
-}
-.min-btn {
-  margin-top: 0.5rem;
-  background: #6b7280;
-  color: white;
-  border: none;
-  padding: 0.4rem 1rem;
-  border-radius: 6px;
-  cursor: pointer;
-}
-.min-btn:hover {
-  background: #4b5563;
-}
-.back-btn {
-  background-color: #f70808;
-  color: white;
-  border: none;
-  padding: 0.6rem 1.2rem;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 1rem;
-  transition: background 0.2s ease;
-}
-.back-btn:hover {
-  background-color: #fdfdfd;
-}
-#zipName {
-  padding: 0.6rem 1rem;
-  font-size: 1rem;
-  border: 2px solid #cbd5e0;
-  border-radius: 8px;
-  width: 100%;
-  max-width: 400px;
-  margin-bottom: 1rem;
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
-  transition: border-color 0.3s ease;
+const generalDocs = [
+  "Formato de alta", "Solicitud de empleo", "Copia del acta de nacimiento", "Número de IMSS", "CURP",
+  "Copia de comprobante de estudios", "Copia de comprobante de domicilio", "Credencial de elector",
+  "Guía de entrevista", "Carta de identidad (solo menores)"
+];
+
+const empresaDocs = [
+  "Permiso firmado por tutor", "Identificación oficial tutor", "Carta responsiva", "Políticas de la empresa",
+  "Políticas de propina", "Convenio de manipulaciones", "Convenio de correo electrónico", "Vale de uniforme",
+  "Apertura de cuentas", "Contrato laboral", "Responsiva tarjeta de nómina", "Cuenta Santander"
+];
+
+window.jsPDF = window.jspdf?.jsPDF || window.jsPDF;
+
+const CLIENT_ID = '447789838113-076qo17ps0bercefg0ln9kiokt9bodtv.apps.googleusercontent.com';
+const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+let authInstance;
+const images = {};
+let zipBlob = null;
+
+function compressImage(blob, maxWidth = 700, quality = 0.8) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / img.width);
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((compressedBlob) => {
+        resolve(compressedBlob);
+        URL.revokeObjectURL(url);
+      }, "image/jpeg", quality);
+    };
+    img.src = url;
+  });
 }
 
-#zipName:focus {
-  outline: none;
-  border-color: #3182ce;
-}
-.zip-controls button {
-  margin-right: 0.5rem;
-  padding: 0.5rem 1rem;
-  background-color: #2b6cb0;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-}
-.zip-controls button:hover {
-  background-color: #2c5282;
-}
-.form-group-imss {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  margin-top: 1.5rem;
+function renderList(docs, containerId) {
+  const ul = document.getElementById(containerId);
+  docs.forEach(doc => {
+    const safeId = doc.replace(/[^ -\u007F]+|[^\w\s]/gi, '').replace(/\s+/g, "_");
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <span class="doc-label">${doc}</span>
+      <span class="doc-status" id="status-${safeId}">❌</span>
+      <button onclick="openCamera('${doc}')">📷 Escanear</button>
+    `;
+    ul.appendChild(li);
+  });
 }
 
-.form-group-imss label {
-  font-size: 1.1rem;
-  font-weight: 500;
-  color: #2b4c7e;
-  margin-bottom: 0.5rem;
-  text-align: center;
-}
+window.onload = () => {
+  renderList(generalDocs, "doc-general");
+  renderList(empresaDocs, "doc-empresa");
 
-.form-group-imss input {
-  padding: 0.6rem 1rem;
-  font-size: 1rem;
-  border: 2px solid #cbd5e0;
-  border-radius: 8px;
-  width: 100%;
-  max-width: 400px;
-  text-align: center;
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
-  transition: border-color 0.3s ease;
-}
-.form-group-imss input:focus {
-  outline: none;
-  border-color: #3182ce;
-}
- #toast {
-      visibility: hidden;
-      min-width: 250px;
-      margin-left: -125px;
-      background-color: #333;
-      color: #fff;
-      text-align: center;
-      border-radius: 2px;
-      padding: 16px;
-      position: fixed;
-      z-index: 1;
-      left: 50%;
-      bottom: 30px;
-      font-size: 17px;
+  document.getElementById("generateZip").onclick = async () => {
+    const baseName = document.getElementById("zipName").value.trim();
+    if (!baseName) return alert("⚠️ Ingresa un nombre para el ZIP");
+    if (Object.keys(images).length === 0) return alert("⚠️ No hay imágenes para generar el ZIP.");
+
+    const fecha = new Date().toISOString().slice(0, 10);
+    const zipName = `${baseName}_${fecha}`;
+    const zip = new JSZip();
+
+    for (const [docName, blob] of Object.entries(images)) {
+      const fileName = docName.replace(/[^ -\u007F]+|[^\w\s]/gi, '').replace(/\s+/g, "_") + ".jpg";
+      zip.file(fileName, blob);
     }
-    #toast.show {
-      visibility: visible;
-      animation: fadein 0.5s, fadeout 0.5s 2.5s;
+
+    const content = await zip.generateAsync({ type: "blob" });
+    zipBlob = content;
+
+    const blobURL = URL.createObjectURL(content);
+    document.zipBlobURL = blobURL;
+    document.generatedZipName = zipName;
+
+    const a = document.createElement("a");
+    a.href = blobURL;
+    a.download = zipName + ".zip";
+    a.click();
+
+    alert("✅ ZIP generado y descargado.");
+  };
+
+  document.getElementById("downloadPDF").onclick = async () => {
+    const statusBox = document.createElement("div");
+    statusBox.style = "position:fixed;bottom:1rem;right:1rem;background:#fff;border:2px solid #333;padding:1rem;z-index:9999;font-family:monospace;";
+    statusBox.innerText = "⏳ Generando PDF...";
+    document.body.appendChild(statusBox);
+
+    try {
+      if (typeof jsPDF !== "function") {
+        statusBox.innerText = "❌ jsPDF no está disponible.";
+        return;
+      }
+
+      if (!zipBlob) {
+        statusBox.innerText = "⚠️ Primero genera el ZIP antes de descargar el PDF.";
+        return;
+      }
+
+      if (Object.keys(images).length === 0) {
+        statusBox.innerText = "⚠️ No hay imágenes para generar el PDF.";
+        return;
+      }
+
+      const pdf = new jsPDF();
+      const entries = Object.entries(images);
+
+      for (let i = 0; i < entries.length; i++) {
+        const [docName, blob] = entries[i];
+        const imageDataUrl = await blobToDataURL(blob);
+
+        const imgProps = pdf.getImageProperties(imageDataUrl);
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+        if (i > 0) pdf.addPage();
+        pdf.addImage(imageDataUrl, "JPEG", 0, 0, pdfWidth, pdfHeight);
+      }
+
+      const fecha = new Date().toISOString().slice(0, 10);
+      const nombre = document.getElementById("zipName").value.trim() || "documentos";
+      const fileName = `${nombre}_${fecha}.pdf`;
+
+      pdf.save(fileName);
+      statusBox.innerText = `✅ PDF generado: ${fileName}`;
+    } catch (err) {
+      console.error("❌ Error al generar el PDF:", err);
+      statusBox.innerText = "❌ Error al generar el PDF. Revisa la consola.";
     }
-    @keyframes fadein {
-      from {bottom: 0; opacity: 0;}
-      to {bottom: 30px; opacity: 1;}
-    }
-    @keyframes fadeout {
-      from {bottom: 30px; opacity: 1;}
-      to {bottom: 0; opacity: 0;}
-    }
-    /* Estilos base para el modal de cámara */
-.camera-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background-color: rgba(0, 0, 0, 0.8);
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  z-index: 999;
-  box-sizing: border-box;
+
+    setTimeout(() => statusBox.remove(), 8000);
+  };
+
+  document.getElementById("minimizeCamera").onclick = () => {
+    document.getElementById("cameraModal").style.display = "none";
+  };
+};
+
+async function openCamera(docName) {
+  const video = document.getElementById("camera");
+  const modal = document.getElementById("cameraModal");
+  const label = document.getElementById("docLabel");
+  const canvas = document.getElementById("snapshotCanvas");
+
+  label.textContent = `📄 Escaneando: ${docName}`;
+  modal.hidden = false;
+  modal.style.display = "flex";
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: "environment",
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      }
+    });
+
+    video.srcObject = stream;
+
+    const oldBtn = document.getElementById("captureBtn");
+    const newBtn = oldBtn.cloneNode(true);
+    newBtn.id = "captureBtn";
+    oldBtn.replaceWith(newBtn);
+
+    newBtn.onclick = () => {
+      const context = canvas.getContext("2d");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob(async (blob) => {
+        if (isImageBlurry(canvas)) {
+          alert("⚠️ La imagen parece borrosa. Toma la foto nuevamente.");
+          return;
+        }
+
+        const compressed = await compressImage(blob);
+        images[docName] = compressed;
+
+        const safeId = docName.replace(/[^ -\u007F]+|[^\w\s]/gi, '').replace(/\s+/g, "_");
+        const statusSpan = document.getElementById(`status-${safeId}`);
+        if (statusSpan) statusSpan.textContent = "✅";
+
+        stream.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+        modal.hidden = true;
+      }, "image/jpeg", 0.9);
+    };
+  } catch (err) {
+    alert("🚫 Error al activar la cámara: " + err.message);
+    modal.hidden = true;
+  }
 }
 
-#camera {
-  width: 90vw;
-  max-width: 600px;
-  height: auto;
-  border-radius: 10px;
-  box-shadow: 0 0 10px #000;
+function isImageBlurry(canvas, threshold = 20) {
+  const context = canvas.getContext("2d");
+  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+  const grayValues = [];
+
+  for (let i = 0; i < imageData.data.length; i += 4) {
+    const r = imageData.data[i];
+    const g = imageData.data[i + 1];
+    const b = imageData.data[i + 2];
+    const gray = (r + g + b) / 3;
+    grayValues.push(gray);
+  }
+
+  const avg = grayValues.reduce((a, b) => a + b, 0) / grayValues.length;
+  const variance = grayValues.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) / grayValues.length;
+
+  return variance < threshold;
 }
 
-/* 📱 Celulares */
-@media (max-width: 599px) {
-  #camera {
-    width: 90vw;
-  }
-
-  #captureBtn,
-  #minimizeCamera {
-    font-size: 1rem;
-    padding: 0.6rem 1.2rem;
-  }
-}
-
-/* 🧾 Tablets */
-@media (min-width: 600px) and (max-width: 1024px) {
-  #camera {
-    width: 70vw;
-  }
-
-  #captureBtn,
-  #minimizeCamera {
-    font-size: 1rem;
-    padding: 0.5rem 1rem;
-  }
-}
-
-/* 💻 Computadoras */
-@media (min-width: 1025px) {
-  #camera {
-    width: 50vw;
-    max-width: 800px;
-  }
-
-  #captureBtn,
-  #minimizeCamera {
-    font-size: 1.1rem;
-    padding: 0.75rem 1.5rem;
-  }
+function blobToDataURL(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 }
