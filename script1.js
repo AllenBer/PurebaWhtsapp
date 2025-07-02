@@ -10,16 +10,38 @@ const empresaDocs = [
   "Apertura de cuentas", "Contrato laboral", "Responsiva tarjeta de nómina", "Cuenta Santander"
 ];
 
+window.jsPDF = window.jspdf?.jsPDF || window.jsPDF;
+
 const CLIENT_ID = '447789838113-076qo17ps0bercefg0ln9kiokt9bodtv.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 let authInstance;
 const images = {};
 let zipBlob = null;
 
+function compressImage(blob, maxWidth = 700, quality = 0.5) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / img.width);
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((compressedBlob) => {
+        resolve(compressedBlob);
+        URL.revokeObjectURL(url);
+      }, "image/jpeg", quality);
+    };
+    img.src = url;
+  });
+}
+
 function renderList(docs, containerId) {
   const ul = document.getElementById(containerId);
   docs.forEach(doc => {
-    const safeId = doc.replace(/[^\w\s]/gi, '').replace(/\s+/g, "_");
+    const safeId = doc.replace(/[^ -\u007F]+|[^\w\s]/gi, '').replace(/\s+/g, "_");
     const li = document.createElement("li");
     li.innerHTML = `
       <span class="doc-label">${doc}</span>
@@ -33,8 +55,147 @@ function renderList(docs, containerId) {
 window.onload = () => {
   renderList(generalDocs, "doc-general");
   renderList(empresaDocs, "doc-empresa");
-  initGoogleAPI();
+
+  document.getElementById("generateZip").onclick = async () => {
+    const baseName = document.getElementById("zipName").value.trim();
+    if (!baseName) return alert("⚠️ Ingresa un nombre para el ZIP");
+    if (Object.keys(images).length === 0) return alert("⚠️ No hay imágenes para generar el ZIP.");
+
+    const fecha = new Date().toISOString().slice(0, 10);
+    const zipName = `${baseName}_${fecha}`;
+    const zip = new JSZip();
+
+    for (const [docName, blob] of Object.entries(images)) {
+      const fileName = docName.replace(/[^ -\u007F]+|[^\w\s]/gi, '').replace(/\s+/g, "_") + ".jpg";
+      zip.file(fileName, blob);
+    }
+
+    const content = await zip.generateAsync({ type: "blob" });
+    zipBlob = content;
+
+    const blobURL = URL.createObjectURL(content);
+    document.zipBlobURL = blobURL;
+    document.generatedZipName = zipName;
+
+    const a = document.createElement("a");
+    a.href = blobURL;
+    a.download = zipName + ".zip";
+    a.click();
+
+    alert("✅ ZIP generado y descargado.");
+  };
+
+  document.getElementById("downloadPDF").onclick = async () => {
+    const statusBox = document.createElement("div");
+    statusBox.style = "position:fixed;bottom:1rem;right:1rem;background:#fff;border:2px solid #333;padding:1rem;z-index:9999;font-family:monospace;";
+    statusBox.innerText = "⏳ Generando PDF...";
+    document.body.appendChild(statusBox);
+
+    try {
+      if (typeof jsPDF !== "function") {
+        statusBox.innerText = "❌ jsPDF no está disponible.";
+        return;
+      }
+
+      if (!zipBlob) {
+        statusBox.innerText = "⚠️ Primero genera el ZIP antes de descargar el PDF.";
+        return;
+      }
+
+      if (Object.keys(images).length === 0) {
+        statusBox.innerText = "⚠️ No hay imágenes para generar el PDF.";
+        return;
+      }
+
+      const pdf = new jsPDF();
+      const entries = Object.entries(images);
+
+      for (let i = 0; i < entries.length; i++) {
+        const [docName, blob] = entries[i];
+        const imageDataUrl = await blobToDataURL(blob);
+
+        const imgProps = pdf.getImageProperties(imageDataUrl);
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+        if (i > 0) pdf.addPage();
+        pdf.addImage(imageDataUrl, "JPEG", 0, 0, pdfWidth, pdfHeight);
+      }
+
+      const fecha = new Date().toISOString().slice(0, 10);
+      const nombre = document.getElementById("zipName").value.trim() || "documentos";
+      const fileName = `${nombre}_${fecha}.pdf`;
+
+      pdf.save(fileName);
+      statusBox.innerText = `✅ PDF generado: ${fileName}`;
+    } catch (err) {
+      console.error("❌ Error al generar el PDF:", err);
+      statusBox.innerText = "❌ Error al generar el PDF. Revisa la consola.";
+    }
+
+    setTimeout(() => statusBox.remove(), 8000);
+  };
+
+  document.getElementById("minimizeCamera").onclick = () => {
+    document.getElementById("cameraModal").style.display = "none";
+  };
 };
+
+async function openCamera(docName) {
+  const video = document.getElementById("camera");
+  const modal = document.getElementById("cameraModal");
+  const label = document.getElementById("docLabel");
+  const canvas = document.getElementById("snapshotCanvas");
+
+  label.textContent = `📄 Escaneando: ${docName}`;
+  modal.hidden = false;
+  modal.style.display = "flex";
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: "environment",
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      }
+    });
+
+    video.srcObject = stream;
+
+    const oldBtn = document.getElementById("captureBtn");
+    const newBtn = oldBtn.cloneNode(true);
+    newBtn.id = "captureBtn";
+    oldBtn.replaceWith(newBtn);
+
+    newBtn.onclick = () => {
+      const context = canvas.getContext("2d");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob(async (blob) => {
+        if (isImageBlurry(canvas)) {
+          alert("⚠️ La imagen parece borrosa. Toma la foto nuevamente.");
+          return;
+        }
+
+        const compressed = await compressImage(blob);
+        images[docName] = compressed;
+
+        const safeId = docName.replace(/[^ -\u007F]+|[^\w\s]/gi, '').replace(/\s+/g, "_");
+        const statusSpan = document.getElementById(`status-${safeId}`);
+        if (statusSpan) statusSpan.textContent = "✅";
+
+        stream.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+        modal.hidden = true;
+      }, "image/jpeg", 0.9);
+    };
+  } catch (err) {
+    alert("🚫 Error al activar la cámara: " + err.message);
+    modal.hidden = true;
+  }
+}
 
 function isImageBlurry(canvas, threshold = 20) {
   const context = canvas.getContext("2d");
@@ -55,192 +216,11 @@ function isImageBlurry(canvas, threshold = 20) {
   return variance < threshold;
 }
 
-async function openCamera(docName) {
-  const video = document.getElementById("camera");
-  const modal = document.getElementById("cameraModal");
-  const label = document.getElementById("docLabel");
-  const canvas = document.getElementById("snapshotCanvas");
-
-  label.textContent = `📄 Escaneando: ${docName}`;
-  modal.hidden = false;
-  modal.style.display = "flex";
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-    video.srcObject = stream;
-
-    const oldBtn = document.getElementById("captureBtn");
-    const newBtn = oldBtn.cloneNode(true);
-    newBtn.id = "captureBtn";
-    oldBtn.replaceWith(newBtn);
-
-    newBtn.onclick = () => {
-      const context = canvas.getContext("2d");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      canvas.toBlob(blob => {
-        if (isImageBlurry(canvas)) {
-          alert("⚠️ La imagen parece borrosa. Toma la foto nuevamente.");
-          return;
-        }
-
-        images[docName] = blob;
-        const safeId = docName.replace(/[^\w\s]/gi, '').replace(/\s+/g, "_");
-        const statusSpan = document.getElementById(`status-${safeId}`);
-        if (statusSpan) statusSpan.textContent = "✅";
-
-        stream.getTracks().forEach(track => track.stop());
-        video.srcObject = null;
-        modal.hidden = true;
-      }, "image/jpeg", 0.9);
-    };
-  } catch (err) {
-    alert("🚫 Error al activar la cámara: " + err.message);
-    modal.hidden = true;
-  }
-}
-
-document.getElementById("minimizeCamera").onclick = () => {
-  const modal = document.getElementById("cameraModal");
-  modal.style.display = "none";
-};
-
-document.getElementById("generateZip").onclick = async () => {
-  let baseName = document.getElementById("zipName").value.trim();
-  if (!baseName) return alert("⚠️ Ingresa un nombre para el ZIP");
-
-  if (Object.keys(images).length === 0) return alert("⚠️ No hay imágenes para generar el ZIP.");
-
-  const fecha = new Date().toISOString().slice(0, 10);
-  const zipName = `${baseName}_${fecha}`;
-
-  const zip = new JSZip();
-  for (const [docName, blob] of Object.entries(images)) {
-    const fileName = docName.replace(/[^\w\s]/gi, '').replace(/\s+/g, "_") + ".jpg";
-    zip.file(fileName, blob);
-  }
-
-  const content = await zip.generateAsync({ type: "blob" });
-  zipBlob = content;
-
-  const blobURL = URL.createObjectURL(content);
-  document.zipBlobURL = blobURL;
-  document.generatedZipName = zipName;
-
-  const a = document.createElement("a");
-  a.href = blobURL;
-  a.download = zipName + ".zip";
-  a.click();
-
-  alert("✅ ZIP generado y descargado.");
-};
-
-document.getElementById("btnWhatsApp").onclick = async () => {
-  if (!zipBlob) return alert("Primero genera el ZIP.");
-
-  const baseName = document.getElementById("zipName").value.trim() || "documentos";
-  const fecha = new Date().toISOString().slice(0, 10);
-  const nombreZip = `${baseName}_${fecha}.zip`;
-  const nombreTrabajador = prompt("Nombre del trabajador:");
-
-  try {
-    const file = new File([zipBlob], nombreZip, { type: "application/zip" });
-    const storageRef = ref(storage, `zips/${nombreZip}`);
-    await uploadBytes(storageRef, file);
-
-    const downloadURL = await getDownloadURL(storageRef);
-
-    const mensaje = encodeURIComponent(
-      `Hola, aquí tienes el ZIP con documentos del trabajador ${nombreTrabajador || ""}:\n${downloadURL}`
-    );
-
-    window.open(`https://wa.me/?text=${mensaje}`, "_blank");
-  } catch (error) {
-    console.error("❌ Error al subir el archivo a Firebase:", error);
-    alert("❌ No se pudo subir ni generar el enlace de descarga.");
-  }
-};
-
-document.getElementById("sendEmail").onclick = async () => {
-  if (!zipBlob) {
-    alert("Primero genera el ZIP.");
-    return;
-  }
-
-  const baseName = document.getElementById("zipName").value.trim() || "documentos";
-  const fecha = new Date().toISOString().slice(0, 10);
-  const zipName = `${baseName}_${fecha}`;
-
-  const link = await uploadZipToDrive(zipBlob, zipName + ".zip");
-  if (!link) return;
-
-  const subject = encodeURIComponent("📁 Documentos escaneados");
-  const body = encodeURIComponent(`Hola,\n\nAquí tienes el ZIP:\n${link}`);
-  window.location.href = `mailto:?subject=${subject}&body=${body}`;
-};
-
-document.getElementById("shareDrive").onclick = async () => {
-  if (!zipBlob) {
-    alert("Primero genera el ZIP.");
-    return;
-  }
-
-  const baseName = document.getElementById("zipName").value.trim() || "documentos";
-  const fecha = new Date().toISOString().slice(0, 10);
-  const zipName = `${baseName}_${fecha}.zip`;
-
-  const link = await uploadZipToDrive(zipBlob, zipName);
-  if (!link) return;
-
-  alert(`✅ Archivo subido a Google Drive:\n${link}`);
-};
-
-function initGoogleAPI() {
-  gapi.load('client:auth2', async () => {
-    await gapi.client.init({ clientId: CLIENT_ID, scope: SCOPES });
-    authInstance = gapi.auth2.getAuthInstance();
+function blobToDataURL(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
   });
-}
-
-async function uploadZipToDrive(blob, filename) {
-  try {
-    await authInstance.signIn();
-    const accessToken = gapi.auth.getToken().access_token;
-
-    const metadata = {
-      name: filename,
-      mimeType: 'application/zip'
-    };
-
-    const form = new FormData();
-    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-    form.append('file', blob);
-
-    const response = await fetch(
-      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
-      {
-        method: 'POST',
-        headers: new Headers({ Authorization: 'Bearer ' + accessToken }),
-        body: form
-      }
-    );
-
-    const file = await response.json();
-
-    await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}/permissions`, {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer ' + accessToken,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ role: 'reader', type: 'anyone' })
-    });
-
-    return `https://drive.google.com/file/d/${file.id}/view?usp=sharing`;
-  } catch (error) {
-    alert("❌ Error subiendo a Google Drive: " + error.message);
-    return null;
-  }
 }
