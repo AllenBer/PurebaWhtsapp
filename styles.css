@@ -54,33 +54,7 @@ button:hover {
   flex-direction: column;
   gap: 10px;
 }
-.camera-modal {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 1rem;
-  box-shadow: 0 0 30px rgba(0,0,0,0.4);
-  z-index: 999;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
 
-#camera {
-  width: 100%;
-  max-width: 500px;
-  border-radius: 12px;
-  margin-top: 1rem;
-  background: black;
-}
-
-#captureBtn {
-  margin-top: 1rem;
-  background: #28a745;
-}
 
 .doc-label {
   flex: 1;
@@ -102,12 +76,7 @@ button:hover {
 .min-btn:hover {
   background: #4b5563;
 }
-.camera-modal {
-  /* estilos existentes... */
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
+
 .back-btn {
   background-color: #f70808;
   color: white;
@@ -208,4 +177,33 @@ button:hover {
       from {bottom: 30px; opacity: 1;}
       to {bottom: 0; opacity: 0;}
     }
-    
+    /* Estilos base para el modal de cámara */
+.camera-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;  /* ocupa todo el ancho */
+  height: 100vh; /* ocupa todo el alto */
+  background-color: rgba(0, 0, 0, 0.8);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+
+#camera {
+  width: 90vw;   /* ancho relativo a la pantalla */
+  max-width: 600px;
+  height: auto;  /* mantiene proporción */
+  border-radius: 10px;
+  box-shadow: 0 0 10px #000;
+}
+
+#captureBtn,
+#minimizeCamera {
+  margin-top: 1rem;
+  font-size: 1.1rem;
+  padding: 0.75rem 1.5rem;
+}
