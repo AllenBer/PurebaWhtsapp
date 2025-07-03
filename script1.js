@@ -72,7 +72,8 @@ window.onload = () => {
     }
 
     const content = await zip.generateAsync({ type: "blob" });
-    zipBlob = content;
+    zipBlob = await generarZipReducido(images, zipName, 2); // ✅
+
 
     const blobURL = URL.createObjectURL(content);
     document.zipBlobURL = blobURL;
@@ -232,49 +233,88 @@ function blobToDataURL(blob) {
     reader.readAsDataURL(blob);
   });
 }
+/////////////////////////////////kljkfgjbfgjk
+async function generarZipReducido(imagenes, nombreZip, maxMB = 2) {
+  const maxBytes = maxMB * 1024 * 1024;
+
+  let calidad = 0.8;
+  let intento = 0;
+  let content;
+
+  while (intento < 3) {
+    const zip = new JSZip();
+
+    for (const [docName, blob] of Object.entries(imagenes)) {
+      const compressed = await compressImage(blob, 700, calidad);
+      const fileName = docName.replace(/[^ -\u007F]+|[^\w\s]/gi, '').replace(/\s+/g, "_") + ".jpg";
+      zip.file(fileName, compressed);
+    }
+
+    content = await zip.generateAsync({ type: "blob" });
+
+    if (content.size <= maxBytes) {
+      console.log(`✅ ZIP comprimido a ${(content.size / 1024 / 1024).toFixed(2)} MB con calidad ${calidad}`);
+      return content;
+    }
+
+    calidad -= 0.2;
+    intento++;
+  }
+
+  console.warn("⚠️ No se pudo reducir el ZIP debajo del límite sin comprometer demasiado la calidad.");
+  return content;
+}
+
+
 async function verificarTamañoYComprimir(blob, tipo = "PDF", maxMB = 2) {
   const maxBytes = maxMB * 1024 * 1024;
 
-  if (blob.size <= maxBytes) {
-    return blob;
+  if (blob.size <= maxBytes) return blob;
+
+  const intentos = [0.7, 0.5, 0.3]; // calidad
+  let finalBlob = blob;
+
+  for (const calidad of intentos) {
+    const pdf = new jsPDF();
+    const entries = Object.entries(images);
+
+    for (let i = 0; i < entries.length; i++) {
+      const [docName, blob] = entries[i];
+      const compressed = await compressImage(blob, 700, calidad);
+      const imageDataUrl = await blobToDataURL(compressed);
+
+      const imgProps = pdf.getImageProperties(imageDataUrl);
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 20;
+      const maxWidth = pageWidth - margin * 2;
+      const maxHeight = pageHeight - margin * 2 - 10;
+
+      let drawWidth = imgProps.width;
+      let drawHeight = imgProps.height;
+
+      const scale = Math.min(maxWidth / drawWidth, maxHeight / drawHeight);
+      drawWidth *= scale;
+      drawHeight *= scale;
+
+      const x = (pageWidth - drawWidth) / 2;
+      const y = margin + 10;
+
+      if (i > 0) pdf.addPage();
+      pdf.setFontSize(12);
+      pdf.setTextColor(40);
+      pdf.text(docName, pageWidth / 2, margin, { align: "center" });
+      pdf.addImage(imageDataUrl, "JPEG", x, y, drawWidth, drawHeight, undefined, "FAST");
+    }
+
+    finalBlob = pdf.output("blob");
+
+    if (finalBlob.size <= maxBytes) {
+      console.log(`✅ PDF comprimido a ${(finalBlob.size / 1024 / 1024).toFixed(2)} MB con calidad ${calidad}`);
+      return finalBlob;
+    }
   }
 
-  console.warn(`⚠️ El archivo ${tipo} supera los ${maxMB}MB. Intentando comprimir...`);
-
-  const pdf = new jsPDF();
-  const entries = Object.entries(images);
-
-  for (let i = 0; i < entries.length; i++) {
-    const [docName, blob] = entries[i];
-    const imageDataUrl = await blobToDataURL(blob);
-
-    const imgProps = pdf.getImageProperties(imageDataUrl);
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin = 20;
-    const maxWidth = pageWidth - margin * 2;
-    const maxHeight = pageHeight - margin * 2 - 10;
-
-    let drawWidth = imgProps.width;
-    let drawHeight = imgProps.height;
-
-    const widthRatio = maxWidth / drawWidth;
-    const heightRatio = maxHeight / drawHeight;
-    const scale = Math.min(widthRatio, heightRatio);
-
-    drawWidth *= scale;
-    drawHeight *= scale;
-
-    const x = (pageWidth - drawWidth) / 2;
-    const y = margin + 10;
-
-    if (i > 0) pdf.addPage();
-    pdf.setFontSize(12);
-    pdf.setTextColor(40);
-    pdf.text(docName, pageWidth / 2, margin, { align: "center" });
-
-    pdf.addImage(imageDataUrl, "JPEG", x, y, drawWidth, drawHeight, undefined, "FAST");
-  }
-
-  return pdf.output("blob");
+  console.warn("⚠️ No se pudo reducir el PDF debajo de 2MB sin perder mucha calidad.");
+  return finalBlob;
 }
