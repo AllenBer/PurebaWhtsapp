@@ -229,7 +229,7 @@ async function generarZipReducido(imagenes, nombreZip, maxMB = 4) {
     content = await zip.generateAsync({ type: "blob" });
 
     if (content.size <= maxBytes) {
-      console.log(`✅ ZIP comprimido a ${(content.size / 1024 / 1024).toFixed(2)} MB con calidad ${calidad}`);
+      console.log(`✅ ZIP comprimido a ${(content.size / 1024 / 1024).toFixed(4)} MB con calidad ${calidad}`);
       return content;
     }
   }
@@ -277,7 +277,7 @@ async function generarPDFReducido(imagenes, maxMB = 4) {
 
     finalBlob = pdf.output("blob");
     if (finalBlob.size <= maxBytes) {
-      console.log(`✅ PDF comprimido a ${(finalBlob.size / 1024 / 1024).toFixed(2)} MB con calidad ${calidad}`);
+      console.log(`✅ PDF comprimido a ${(finalBlob.size / 1024 / 1024).toFixed(4)} MB con calidad ${calidad}`);
       return finalBlob;
     }
   }
@@ -332,7 +332,7 @@ async function verificarTamañoYComprimir(blob, tipo = "PDF", maxMB = 2) {
     finalBlob = pdf.output("blob");
 
     if (finalBlob.size <= maxBytes) {
-      console.log(`✅ PDF comprimido a ${(finalBlob.size / 1024 / 1024).toFixed(2)} MB con calidad ${calidad}`);
+      console.log(`✅ PDF comprimido a ${(finalBlob.size / 1024 / 1024).toFixed(4)} MB con calidad ${calidad}`);
       return finalBlob;
     }
   }
