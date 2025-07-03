@@ -57,94 +57,64 @@ window.onload = () => {
   renderList(generalDocs, "doc-general");
   renderList(empresaDocs, "doc-empresa");
 
-  document.getElementById("generateZip").onclick = async () => {
-    const baseName = document.getElementById("zipName").value.trim();
-    if (!baseName) return alert("⚠️ Ingresa un nombre para el ZIP");
-    if (Object.keys(images).length === 0) return alert("⚠️ No hay imágenes para generar el ZIP.");
+ document.getElementById("generateZip").onclick = async () => {
+  const baseName = document.getElementById("zipName").value.trim();
+  if (!baseName) return alert("⚠️ Ingresa un nombre para el ZIP");
+  if (Object.keys(images).length === 0) return alert("⚠️ No hay imágenes para generar el ZIP.");
 
-    const fecha = new Date().toISOString().slice(0, 10);
-    const zipName = `${baseName}_${fecha}`;
-    const zip = new JSZip();
+  const fecha = new Date().toISOString().slice(0, 10);
+  const zipName = `${baseName}_${fecha}`;
 
-    for (const [docName, blob] of Object.entries(images)) {
-      const fileName = docName.replace(/[^ -\u007F]+|[^\w\s]/gi, '').replace(/\s+/g, "_") + ".jpg";
-      zip.file(fileName, blob);
-    }
+  zipBlob = await generarZipReducido(images, zipName, 2);
 
-    const content = await zip.generateAsync({ type: "blob" });
-    zipBlob = await generarZipReducido(images, zipName, 2); // ✅
+  const blobURL = URL.createObjectURL(zipBlob);
+  document.zipBlobURL = blobURL;
+  document.generatedZipName = zipName;
 
+  const a = document.createElement("a");
+  a.href = blobURL;
+  a.download = zipName + ".zip";
+  a.click();
 
-    const blobURL = URL.createObjectURL(content);
-    document.zipBlobURL = blobURL;
-    document.generatedZipName = zipName;
-
-    const a = document.createElement("a");
-    a.href = blobURL;
-    a.download = zipName + ".zip";
-    a.click();
-
-    alert("✅ ZIP generado y descargado.");
-  };
+  alert("✅ ZIP generado y descargado.");
+};
 
   document.getElementById("downloadPDF").onclick = async () => {
-    const statusBox = document.createElement("div");
-    statusBox.style = "position:fixed;bottom:1rem;right:1rem;background:#fff;border:2px solid #333;padding:1rem;z-index:9999;font-family:monospace;";
-    statusBox.innerText = "⏳ Generando PDF...";
-    document.body.appendChild(statusBox);
+  const statusBox = document.createElement("div");
+  statusBox.style = "position:fixed;bottom:1rem;right:1rem;background:#fff;border:2px solid #333;padding:1rem;z-index:9999;font-family:monospace;";
+  statusBox.innerText = "⏳ Generando PDF...";
+  document.body.appendChild(statusBox);
 
-    try {
-      if (typeof jsPDF !== "function") {
-        statusBox.innerText = "❌ jsPDF no está disponible.";
-        return;
-      }
-
-      if (!zipBlob) {
-        statusBox.innerText = "⚠️ Primero genera el ZIP antes de descargar el PDF.";
-        return;
-      }
-
-      if (Object.keys(images).length === 0) {
-        statusBox.innerText = "⚠️ No hay imágenes para generar el PDF.";
-        return;
-      }
-
-      const pdf = new jsPDF();
-      const entries = Object.entries(images);
-
-      for (let i = 0; i < entries.length; i++) {
-        const [docName, blob] = entries[i];
-        const imageDataUrl = await blobToDataURL(blob);
-
-        const imgProps = pdf.getImageProperties(imageDataUrl);
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-
-        if (i > 0) pdf.addPage();
-        pdf.addImage(imageDataUrl, "JPEG", 0, 0, pdfWidth, pdfHeight);
-      }
-
-      const fecha = new Date().toISOString().slice(0, 10);
-      const nombre = document.getElementById("zipName").value.trim() || "documentos";
-     
-
-      const finalPDFBlob = await verificarTamañoYComprimir(pdf.output("blob"), "PDF", 2);
-const fileName = `${nombre}_${fecha}.pdf`;
-
-const a = document.createElement("a");
-a.href = URL.createObjectURL(finalPDFBlob);
-a.download = fileName;
-a.click();
-
-statusBox.innerText = `✅ PDF generado: ${fileName}`;
-
-    } catch (err) {
-      console.error("❌ Error al generar el PDF:", err);
-      statusBox.innerText = "❌ Error al generar el PDF. Revisa la consola.";
+  try {
+    if (typeof jsPDF !== "function") {
+      statusBox.innerText = "❌ jsPDF no está disponible.";
+      return;
     }
 
-    setTimeout(() => statusBox.remove(), 8000);
-  };
+    if (!zipBlob) {
+      statusBox.innerText = "⚠️ Primero genera el ZIP antes de descargar el PDF.";
+      return;
+    }
+
+    const finalPDFBlob = await generarPDFReducido(images, 2);
+
+    const nombre = document.getElementById("zipName").value.trim() || "documentos";
+    const fecha = new Date().toISOString().slice(0, 10);
+    const fileName = `${nombre}_${fecha}.pdf`;
+
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(finalPDFBlob);
+    a.download = fileName;
+    a.click();
+
+    statusBox.innerText = `✅ PDF generado: ${fileName}`;
+  } catch (err) {
+    console.error("❌ Error al generar el PDF:", err);
+    statusBox.innerText = "❌ Error al generar el PDF. Revisa la consola.";
+  }
+
+  setTimeout(() => statusBox.remove(), 8000);
+};
 
   document.getElementById("minimizeCamera").onclick = () => {
     document.getElementById("cameraModal").style.display = "none";
@@ -236,18 +206,16 @@ function blobToDataURL(blob) {
 /////////////////////////////////kljkfgjbfgjk
 async function generarZipReducido(imagenes, nombreZip, maxMB = 2) {
   const maxBytes = maxMB * 1024 * 1024;
-
-  let calidad = 0.8;
-  let intento = 0;
+  const calidades = [0.9, 0.7, 0.5, 0.3];
   let content;
 
-  while (intento < 3) {
+  for (const calidad of calidades) {
     const zip = new JSZip();
 
     for (const [docName, blob] of Object.entries(imagenes)) {
-      const compressed = await compressImage(blob, 700, calidad);
-      const fileName = docName.replace(/[^ -\u007F]+|[^\w\s]/gi, '').replace(/\s+/g, "_") + ".jpg";
-      zip.file(fileName, compressed);
+      const comprimida = await compressImage(blob, 1024, calidad);
+      const nombre = docName.replace(/[^\w\s]/gi, "_") + ".jpg";
+      zip.file(nombre, comprimida);
     }
 
     content = await zip.generateAsync({ type: "blob" });
@@ -256,14 +224,59 @@ async function generarZipReducido(imagenes, nombreZip, maxMB = 2) {
       console.log(`✅ ZIP comprimido a ${(content.size / 1024 / 1024).toFixed(2)} MB con calidad ${calidad}`);
       return content;
     }
-
-    calidad -= 0.2;
-    intento++;
   }
 
-  console.warn("⚠️ No se pudo reducir el ZIP debajo del límite sin comprometer demasiado la calidad.");
+  console.warn("⚠️ No se pudo reducir el ZIP a menos de 2MB sin perder calidad visual.");
   return content;
 }
+////////////////////////////////PDF
+async function generarPDFReducido(imagenes, maxMB = 2) {
+  const maxBytes = maxMB * 1024 * 1024;
+  const calidades = [0.9, 0.7, 0.5, 0.3];
+  let finalBlob;
+
+  for (const calidad of calidades) {
+    const pdf = new jsPDF();
+
+    const entries = Object.entries(imagenes);
+    for (let i = 0; i < entries.length; i++) {
+      const [docName, blob] = entries[i];
+      const comprimida = await compressImage(blob, 1024, calidad);
+      const imageDataUrl = await blobToDataURL(comprimida);
+
+      const imgProps = pdf.getImageProperties(imageDataUrl);
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 20;
+      const maxWidth = pageWidth - margin * 2;
+      const maxHeight = pageHeight - margin * 2 - 10;
+
+      let drawWidth = imgProps.width;
+      let drawHeight = imgProps.height;
+      const scale = Math.min(maxWidth / drawWidth, maxHeight / drawHeight);
+      drawWidth *= scale;
+      drawHeight *= scale;
+
+      const x = (pageWidth - drawWidth) / 2;
+      const y = margin + 10;
+
+      if (i > 0) pdf.addPage();
+      pdf.setFontSize(12);
+      pdf.text(docName, pageWidth / 2, margin, { align: "center" });
+      pdf.addImage(imageDataUrl, "JPEG", x, y, drawWidth, drawHeight, undefined, "FAST");
+    }
+
+    finalBlob = pdf.output("blob");
+    if (finalBlob.size <= maxBytes) {
+      console.log(`✅ PDF comprimido a ${(finalBlob.size / 1024 / 1024).toFixed(2)} MB con calidad ${calidad}`);
+      return finalBlob;
+    }
+  }
+
+  console.warn("⚠️ No se pudo reducir el PDF a menos de 2MB sin perder calidad visual.");
+  return finalBlob;
+}
+
 
 
 async function verificarTamañoYComprimir(blob, tipo = "PDF", maxMB = 2) {
