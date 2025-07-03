@@ -125,10 +125,18 @@ window.onload = () => {
 
       const fecha = new Date().toISOString().slice(0, 10);
       const nombre = document.getElementById("zipName").value.trim() || "documentos";
-      const fileName = `${nombre}_${fecha}.pdf`;
+     
 
-      pdf.save(fileName);
-      statusBox.innerText = `✅ PDF generado: ${fileName}`;
+      const finalPDFBlob = await verificarTamañoYComprimir(pdf.output("blob"), "PDF", 2);
+const fileName = `${nombre}_${fecha}.pdf`;
+
+const a = document.createElement("a");
+a.href = URL.createObjectURL(finalPDFBlob);
+a.download = fileName;
+a.click();
+
+statusBox.innerText = `✅ PDF generado: ${fileName}`;
+
     } catch (err) {
       console.error("❌ Error al generar el PDF:", err);
       statusBox.innerText = "❌ Error al generar el PDF. Revisa la consola.";
@@ -223,4 +231,50 @@ function blobToDataURL(blob) {
     reader.onerror = reject;
     reader.readAsDataURL(blob);
   });
+}
+async function verificarTamañoYComprimir(blob, tipo = "PDF", maxMB = 2) {
+  const maxBytes = maxMB * 1024 * 1024;
+
+  if (blob.size <= maxBytes) {
+    return blob;
+  }
+
+  console.warn(`⚠️ El archivo ${tipo} supera los ${maxMB}MB. Intentando comprimir...`);
+
+  const pdf = new jsPDF();
+  const entries = Object.entries(images);
+
+  for (let i = 0; i < entries.length; i++) {
+    const [docName, blob] = entries[i];
+    const imageDataUrl = await blobToDataURL(blob);
+
+    const imgProps = pdf.getImageProperties(imageDataUrl);
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 20;
+    const maxWidth = pageWidth - margin * 2;
+    const maxHeight = pageHeight - margin * 2 - 10;
+
+    let drawWidth = imgProps.width;
+    let drawHeight = imgProps.height;
+
+    const widthRatio = maxWidth / drawWidth;
+    const heightRatio = maxHeight / drawHeight;
+    const scale = Math.min(widthRatio, heightRatio);
+
+    drawWidth *= scale;
+    drawHeight *= scale;
+
+    const x = (pageWidth - drawWidth) / 2;
+    const y = margin + 10;
+
+    if (i > 0) pdf.addPage();
+    pdf.setFontSize(12);
+    pdf.setTextColor(40);
+    pdf.text(docName, pageWidth / 2, margin, { align: "center" });
+
+    pdf.addImage(imageDataUrl, "JPEG", x, y, drawWidth, drawHeight, undefined, "FAST");
+  }
+
+  return pdf.output("blob");
 }
