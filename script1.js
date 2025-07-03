@@ -17,6 +17,13 @@ const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 let authInstance;
 const images = {};
 let zipBlob = null;
+const docSizes = {
+  "Credencial de elector (Frente)": { width: 326, height: 201 }, // tamaño ID
+  "Credencial de elector (Reverso)": { width: 326, height: 201 }, // tamaño ID
+  "Contrato laboral": { width: 816, height: 1344 },     // tamaño oficio
+  "default": { width: 816, height: 1056 }               // tamaño carta
+};
+
 
 function compressImage(blob, maxWidth = 700, quality = 0.8) {
   return new Promise((resolve) => {
@@ -168,29 +175,35 @@ async function openCamera(docName) {
     oldBtn.replaceWith(newBtn);
 
     newBtn.onclick = () => {
-      const context = canvas.getContext("2d");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const context = canvas.getContext("2d");
 
-      canvas.toBlob(async (blob) => {
-        if (isImageBlurry(canvas)) {
-          alert("⚠️ La imagen parece borrosa. Toma la foto nuevamente.");
-          return;
-        }
+  // 📐 Elegir tamaño según el documento
+  const size = docSizes[docName] || docSizes["default"];
+  canvas.width = size.width;
+  canvas.height = size.height;
 
-        const compressed = await compressImage(blob);
-        images[docName] = compressed;
+  // 🖼️ Dibujar imagen del video al canvas con escalado proporcional
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        const safeId = docName.replace(/[^ -\u007F]+|[^\w\s]/gi, '').replace(/\s+/g, "_");
-        const statusSpan = document.getElementById(`status-${safeId}`);
-        if (statusSpan) statusSpan.textContent = "✅";
+  canvas.toBlob(async (blob) => {
+    if (isImageBlurry(canvas)) {
+      alert("⚠️ La imagen parece borrosa. Toma la foto nuevamente.");
+      return;
+    }
 
-        stream.getTracks().forEach(track => track.stop());
-        video.srcObject = null;
-        modal.hidden = true;
-      }, "image/jpeg", 0.9);
-    };
+    const compressed = await compressImage(blob);
+    images[docName] = compressed;
+
+    const safeId = docName.replace(/[^ -\u007F]+|[^\w\s]/gi, '').replace(/\s+/g, "_");
+    const statusSpan = document.getElementById(`status-${safeId}`);
+    if (statusSpan) statusSpan.textContent = "✅";
+
+    stream.getTracks().forEach(track => track.stop());
+    video.srcObject = null;
+    modal.hidden = true;
+  }, "image/jpeg", 0.9);
+};
+
   } catch (err) {
     alert("🚫 Error al activar la cámara: " + err.message);
     modal.hidden = true;
@@ -215,7 +228,6 @@ function isImageBlurry(canvas, threshold = 20) {
 
   return variance < threshold;
 }
-
 function blobToDataURL(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
