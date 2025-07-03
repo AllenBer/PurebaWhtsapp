@@ -18,12 +18,10 @@ let authInstance;
 const images = {};
 let zipBlob = null;
 const docSizes = {
-  "Credencial de elector (Frente)": { width: 326, height: 201 }, // tamaño ID
-  "Credencial de elector (Reverso)": { width: 326, height: 201 }, // tamaño ID
+  "Credencial de elector (Frente)": { width: 1304, height: 804 },   // 4x más resolución
+  "Credencial de elector (Reverso)": { width: 1304, height: 804 },
   "Contrato laboral": { width: 816, height: 1344 },     // tamaño oficio
-  "default": { width: 816, height: 1056 }               // tamaño carta
 };
-
 
 function compressImage(blob, maxWidth = 700, quality = 0.8) {
   return new Promise((resolve) => {
@@ -93,55 +91,79 @@ window.onload = () => {
   };
 
   document.getElementById("downloadPDF").onclick = async () => {
-    const statusBox = document.createElement("div");
-    statusBox.style = "position:fixed;bottom:1rem;right:1rem;background:#fff;border:2px solid #333;padding:1rem;z-index:9999;font-family:monospace;";
-    statusBox.innerText = "⏳ Generando PDF...";
-    document.body.appendChild(statusBox);
+  const statusBox = document.createElement("div");
+  statusBox.style = "position:fixed;bottom:1rem;right:1rem;background:#fff;border:2px solid #333;padding:1rem;z-index:9999;font-family:monospace;";
+  statusBox.innerText = "⏳ Generando PDF...";
+  document.body.appendChild(statusBox);
 
-    try {
-      if (typeof jsPDF !== "function") {
-        statusBox.innerText = "❌ jsPDF no está disponible.";
-        return;
-      }
-
-      if (!zipBlob) {
-        statusBox.innerText = "⚠️ Primero genera el ZIP antes de descargar el PDF.";
-        return;
-      }
-
-      if (Object.keys(images).length === 0) {
-        statusBox.innerText = "⚠️ No hay imágenes para generar el PDF.";
-        return;
-      }
-
-      const pdf = new jsPDF();
-      const entries = Object.entries(images);
-
-      for (let i = 0; i < entries.length; i++) {
-        const [docName, blob] = entries[i];
-        const imageDataUrl = await blobToDataURL(blob);
-
-        const imgProps = pdf.getImageProperties(imageDataUrl);
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-
-        if (i > 0) pdf.addPage();
-        pdf.addImage(imageDataUrl, "JPEG", 0, 0, pdfWidth, pdfHeight);
-      }
-
-      const fecha = new Date().toISOString().slice(0, 10);
-      const nombre = document.getElementById("zipName").value.trim() || "documentos";
-      const fileName = `${nombre}_${fecha}.pdf`;
-
-      pdf.save(fileName);
-      statusBox.innerText = `✅ PDF generado: ${fileName}`;
-    } catch (err) {
-      console.error("❌ Error al generar el PDF:", err);
-      statusBox.innerText = "❌ Error al generar el PDF. Revisa la consola.";
+  try {
+    if (typeof jsPDF !== "function") {
+      statusBox.innerText = "❌ jsPDF no está disponible.";
+      return;
     }
 
-    setTimeout(() => statusBox.remove(), 8000);
-  };
+    if (!zipBlob) {
+      statusBox.innerText = "⚠️ Primero genera el ZIP antes de descargar el PDF.";
+      return;
+    }
+
+    if (Object.keys(images).length === 0) {
+      statusBox.innerText = "⚠️ No hay imágenes para generar el PDF.";
+      return;
+    }
+
+    const pdf = new jsPDF();
+    const entries = Object.entries(images);
+
+    for (let i = 0; i < entries.length; i++) {
+      const [docName, blob] = entries[i];
+      const imageDataUrl = await blobToDataURL(blob);
+      const imgProps = pdf.getImageProperties(imageDataUrl);
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 20;
+      const maxWidth = pageWidth - margin * 2;
+      const maxHeight = pageHeight - margin * 2 - 10; // espacio para el título
+
+      let drawWidth = imgProps.width;
+      let drawHeight = imgProps.height;
+
+      const widthRatio = maxWidth / drawWidth;
+      const heightRatio = maxHeight / drawHeight;
+      const scale = Math.min(widthRatio, heightRatio);
+
+      drawWidth *= scale;
+      drawHeight *= scale;
+
+      const x = (pageWidth - drawWidth) / 2;
+      const y = margin + 10;
+
+      if (i > 0) pdf.addPage();
+
+      // 🏷️ Título del documento
+      pdf.setFontSize(12);
+      pdf.setTextColor(40);
+      pdf.text(docName, pageWidth / 2, margin, { align: "center" });
+
+      // 🖼️ Imagen centrada
+      pdf.addImage(imageDataUrl, "JPEG", x, y, drawWidth, drawHeight);
+    }
+
+    const fecha = new Date().toISOString().slice(0, 10);
+    const nombre = document.getElementById("zipName").value.trim() || "documentos";
+    const fileName = `${nombre}_${fecha}.pdf`;
+
+    pdf.save(fileName);
+    statusBox.innerText = `✅ PDF generado: ${fileName}`;
+  } catch (err) {
+    console.error("❌ Error al generar el PDF:", err);
+    statusBox.innerText = "❌ Error al generar el PDF. Revisa la consola.";
+  }
+
+  setTimeout(() => statusBox.remove(), 8000);
+};
+
 
   document.getElementById("minimizeCamera").onclick = () => {
     document.getElementById("cameraModal").style.display = "none";
