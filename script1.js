@@ -64,6 +64,8 @@ document.getElementById("generateZip").onclick = async () => {
 
   const fecha = new Date().toISOString().slice(0, 10);
   const zipName = `${baseName}_${fecha}`;
+  console.log(`📦 ZIP final: ${(zipBlob.size / 1024 / 1024).toFixed(2)} MB`);
+
 
   // ✅ Aquí se guarda correctamente el ZIP generado
   zipBlob = await generarZipReducido(images, zipName, 4); // ahora acepta hasta 4MB
@@ -210,9 +212,10 @@ function blobToDataURL(blob) {
   });
 }
 /////////////////////////////////kljkfgjbfgjk
-async function generarZipReducido(imagenes, nombreZip, maxMB = 2) {
+async function generarZipReducido(imagenes, nombreZip, maxMB = 4) {
   const maxBytes = maxMB * 1024 * 1024;
-  const calidades = [1.0, 0.9, 0.8, 0.7];
+  const calidades = [1.0, 0.9, 0.8, 0.7, 0.6, 0.5];
+
 
   let content;
 
@@ -237,10 +240,17 @@ async function generarZipReducido(imagenes, nombreZip, maxMB = 2) {
   console.warn("⚠️ No se pudo reducir el ZIP a menos de 2MB sin perder calidad visual.");
   return content;
 }
+
+if (content.size > maxBytes) {
+  alert(`⚠️ El ZIP resultante pesa ${(content.size / 1024 / 1024).toFixed(2)} MB, que supera el límite de ${maxMB} MB.`);
+  return null;
+}
+
 ////////////////////////////////PDF
-async function generarPDFReducido(imagenes, maxMB = 2) {
+async function generarPDFReducido(imagenes, maxMB = 4) {
   const maxBytes = maxMB * 1024 * 1024;
-  const calidades = [0.9, 0.7, 0.5, 0.3];
+  const calidades = [1.0, 0.9, 0.8, 0.7, 0.6, 0.5];
+
   let finalBlob;
 
   for (const calidad of calidades) {
@@ -284,6 +294,11 @@ async function generarPDFReducido(imagenes, maxMB = 2) {
   console.warn("⚠️ No se pudo reducir el PDF a menos de 2MB sin perder calidad visual.");
   return finalBlob;
 }
+if (content.size > maxBytes) {
+  alert(`⚠️ El ZIP resultante pesa ${(content.size / 1024 / 1024).toFixed(2)} MB, que supera el límite de ${maxMB} MB.`);
+  return null;
+}
+
 
 
 
