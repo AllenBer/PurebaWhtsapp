@@ -64,7 +64,6 @@ document.getElementById("generateZip").onclick = async () => {
 
   const fecha = new Date().toISOString().slice(0, 10);
   const zipName = `${baseName}_${fecha}`;
-  console.log(`📦 ZIP final: ${(zipBlob.size / 1024 / 1024).toFixed(2)} MB`);
 
 
   // ✅ Aquí se guarda correctamente el ZIP generado
