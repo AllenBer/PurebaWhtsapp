@@ -90,8 +90,7 @@ button:hover {
 }
 
 .back-btn:hover {
-  background-color: #fdfdfd; /* Esto hará que el botón se vea blanco al pasar el mouse */
-  color: #f70808; /* Asegúrate de que el texto cambie de color para que sea visible */
+  background-color: #fdfdfd;
 }
 
 #zipName {
@@ -207,11 +206,10 @@ button:hover {
 
 #camera {
   width: 90vw;
-  max-width: 600px; /* Mantener un máximo para pantallas muy grandes */
+  max-width: 600px;
   height: auto;
   border-radius: 10px;
   box-shadow: 0 0 10px #000;
-  object-fit: cover; /* Asegura que el video cubra el área sin distorsionarse */
 }
 
 #captureBtn,
@@ -219,71 +217,45 @@ button:hover {
   margin-top: 1rem;
   font-size: 1.1rem;
   padding: 0.75rem 1.5rem;
-  /* Añadir un ancho máximo para los botones en pantallas grandes si es necesario */
-  max-width: 250px;
-  width: 90%; /* Hacer que los botones ocupen más ancho en pantallas pequeñas */
 }
 
----
-
-## Media Queries para Tabletas y Teléfonos
-
-Estos estilos se aplicarán en pantallas más pequeñas para mejorar la visualización y usabilidad.
-
-```css
-/* Para pantallas con un ancho máximo de 768px (típicamente tabletas en vertical y teléfonos) */
-@media (max-width: 768px) {
-  .container {
-    padding: 1.5rem; /* Reducir el padding del contenedor principal */
-  }
-
+/* 🔁 Ajustes responsivos para tablets y pantallas pequeñas */
+@media (max-height: 700px) {
   .camera-modal {
-    padding: 0.5rem; /* Reducir el padding general del modal */
+    padding: 0.5rem;
+    justify-content: flex-start;
+    overflow-y: auto;
   }
 
   #camera {
-    width: 95vw; /* Ocupar casi todo el ancho disponible */
-    max-height: 60vh; /* Limitar la altura de la cámara para dejar espacio a los botones */
-    object-fit: contain; /* Ajustar el video para que quepa completamente */
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    margin-top: 1rem;
   }
 
   #captureBtn,
   #minimizeCamera {
-    width: 80%; /* Asegurar que los botones sean más anchos y fáciles de tocar */
-    font-size: 1rem; /* Reducir ligeramente el tamaño de la fuente si es necesario */
-    padding: 0.6rem 1.2rem; /* Ajustar el padding de los botones */
-    margin-top: 0.8rem; /* Reducir el margen superior entre la cámara y los botones */
-  }
-
-  .zip-controls {
-    flex-direction: column; /* Apilar los elementos en pantallas más pequeñas */
-    align-items: stretch; /* Estirar los elementos para que ocupen todo el ancho */
-  }
-
-  .zip-controls label,
-  .zip-controls input,
-  .zip-controls button {
-    width: 100%; /* Asegurar que ocupen todo el ancho disponible */
-    margin-right: 0; /* Eliminar margen derecho si se apilan */
-  }
-
-  #zipName {
-    margin-bottom: 0.5rem; /* Ajustar margen inferior */
+    width: 90%;
+    max-width: 300px;
+    margin: 1rem auto 0;
   }
 }
 
-/* Para pantallas con un ancho máximo de 480px (típicamente teléfonos) */
-@media (max-width: 480px) {
+@media (orientation: portrait) and (min-width: 768px) {
+  .camera-modal {
+    justify-content: flex-start;
+    padding-top: 2rem;
+    overflow-y: auto;
+  }
+
   #camera {
-    width: 98vw; /* Casi todo el ancho */
-    max-height: 55vh; /* Limitar más la altura para pantallas muy pequeñas */
+    max-height: 50vh;
   }
 
   #captureBtn,
   #minimizeCamera {
-    width: 90%; /* Botones casi al 90% del ancho */
-    font-size: 0.95rem; /* Un poco más pequeña la fuente */
-    padding: 0.5rem 1rem; /* Padding más pequeño */
-    margin-top: 0.6rem; /* Margen más pequeño */
+    font-size: 1rem;
+    padding: 0.6rem 1.2rem;
   }
 }
