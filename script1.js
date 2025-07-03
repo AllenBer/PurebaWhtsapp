@@ -57,7 +57,7 @@ window.onload = () => {
   renderList(generalDocs, "doc-general");
   renderList(empresaDocs, "doc-empresa");
 
- document.getElementById("generateZip").onclick = async () => {
+document.getElementById("generateZip").onclick = async () => {
   const baseName = document.getElementById("zipName").value.trim();
   if (!baseName) return alert("⚠️ Ingresa un nombre para el ZIP");
   if (Object.keys(images).length === 0) return alert("⚠️ No hay imágenes para generar el ZIP.");
@@ -65,9 +65,12 @@ window.onload = () => {
   const fecha = new Date().toISOString().slice(0, 10);
   const zipName = `${baseName}_${fecha}`;
 
- await generarZipReducido(images, zipName, 4); // ahora acepta hasta 4MB
+  // ✅ Aquí se guarda correctamente el ZIP generado
+  zipBlob = await generarZipReducido(images, zipName, 4); // ahora acepta hasta 4MB
 
-
+  if (!zipBlob) {
+    return alert("❌ Error al generar el ZIP.");
+  }
 
   const blobURL = URL.createObjectURL(zipBlob);
   document.zipBlobURL = blobURL;
@@ -80,6 +83,7 @@ window.onload = () => {
 
   alert("✅ ZIP generado y descargado.");
 };
+
 
   document.getElementById("downloadPDF").onclick = async () => {
   const statusBox = document.createElement("div");
