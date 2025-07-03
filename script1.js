@@ -65,7 +65,9 @@ window.onload = () => {
   const fecha = new Date().toISOString().slice(0, 10);
   const zipName = `${baseName}_${fecha}`;
 
-  zipBlob = await generarZipReducido(images, zipName, 2);
+ await generarZipReducido(images, zipName, 4); // ahora acepta hasta 4MB
+
+
 
   const blobURL = URL.createObjectURL(zipBlob);
   document.zipBlobURL = blobURL;
@@ -96,7 +98,7 @@ window.onload = () => {
       return;
     }
 
-    const finalPDFBlob = await generarPDFReducido(images, 2);
+    const finalPDFBlob = await generarPDFReducido(images, 4);          // ahora acepta hasta 4MB
 
     const nombre = document.getElementById("zipName").value.trim() || "documentos";
     const fecha = new Date().toISOString().slice(0, 10);
@@ -206,14 +208,16 @@ function blobToDataURL(blob) {
 /////////////////////////////////kljkfgjbfgjk
 async function generarZipReducido(imagenes, nombreZip, maxMB = 2) {
   const maxBytes = maxMB * 1024 * 1024;
-  const calidades = [0.9, 0.7, 0.5, 0.3];
+  const calidades = [1.0, 0.9, 0.8, 0.7];
+
   let content;
 
   for (const calidad of calidades) {
     const zip = new JSZip();
 
     for (const [docName, blob] of Object.entries(imagenes)) {
-      const comprimida = await compressImage(blob, 1024, calidad);
+      const comprimida = await compressImage(blob, 1600, calidad);
+
       const nombre = docName.replace(/[^\w\s]/gi, "_") + ".jpg";
       zip.file(nombre, comprimida);
     }
