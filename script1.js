@@ -1,7 +1,7 @@
 const generalDocs = [
   "Formato de alta", "Solicitud de empleo", "Copia del acta de nacimiento", "Número de IMSS", "CURP",
-  "Copia de comprobante de estudios", "Copia de comprobante de domicilio", "Credencial de elector",
-  "Guía de entrevista", "Carta de identidad (solo menores)"
+  "Copia de comprobante de estudios", "Copia de comprobante de domicilio", "Credencial de elector (Frente)",
+  "Credencial de elector (Reverso)","Guía de entrevista", "Carta de identidad (solo menores)"
 ];
 
 const empresaDocs = [
