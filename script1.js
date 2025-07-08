@@ -65,8 +65,8 @@ document.getElementById("generateZip").onclick = async () => {
   const fecha = new Date().toISOString().slice(0, 10);
   const zipName = `${baseName}_${fecha}`;
 
-  // ✅ Aquí se guarda correctamente el ZIP generado
-  zipBlob = await generarZipReducido(images, zipName, 4); // ahora acepta hasta 4MB
+  const comprimidas = await comprimirPorLote(images); // 💥 compresión por lote
+  zipBlob = await generarZipReducido(comprimidas, zipName, 4);
 
   if (!zipBlob) {
     return alert("❌ Error al generar el ZIP.");
@@ -84,6 +84,7 @@ document.getElementById("generateZip").onclick = async () => {
   alert("✅ ZIP generado y descargado.");
 };
 
+///////dercargar archivo pdf 
 
   document.getElementById("downloadPDF").onclick = async () => {
   const statusBox = document.createElement("div");
@@ -102,7 +103,8 @@ document.getElementById("generateZip").onclick = async () => {
       return;
     }
 
-    const finalPDFBlob = await generarPDFReducido(images, 4);          // ahora acepta hasta 4MB
+    const comprimidas = await comprimirPorLote(images); // 💥 compresión por lote
+    const finalPDFBlob = await generarPDFReducido(comprimidas, 4);
 
     const nombre = document.getElementById("zipName").value.trim() || "documentos";
     const fecha = new Date().toISOString().slice(0, 10);
@@ -121,6 +123,7 @@ document.getElementById("generateZip").onclick = async () => {
 
   setTimeout(() => statusBox.remove(), 8000);
 };
+
 
   document.getElementById("minimizeCamera").onclick = () => {
     document.getElementById("cameraModal").style.display = "none";
@@ -339,4 +342,30 @@ async function verificarTamañoYComprimir(blob, tipo = "PDF", maxMB = 2) {
 
   console.warn("⚠️ No se pudo reducir el PDF debajo de 2MB sin perder mucha calidad.");
   return finalBlob;
+}
+const MAX_TOTAL_BYTES = 4 * 1024 * 1024;
+const TARGET_PER_IMAGE = Math.floor(MAX_TOTAL_BYTES / 23); // ~178KB
+
+async function comprimirPorLote(imagenes) {
+  const resultado = {};
+  const calidadInicial = 0.85;
+  const resolucionMax = 1400;
+
+  for (const [nombre, blobOriginal] of Object.entries(imagenes)) {
+    let calidad = calidadInicial;
+    let comprimida = await compressImage(blobOriginal, resolucionMax, calidad);
+
+    while (comprimida.size > TARGET_PER_IMAGE && calidad > 0.5) {
+      calidad -= 0.05;
+      comprimida = await compressImage(blobOriginal, resolucionMax, calidad);
+    }
+
+    resultado[nombre] = comprimida;
+    console.log(`📦 ${nombre} → ${(comprimida.size / 1024).toFixed(1)} KB, calidad: ${calidad.toFixed(2)}`);
+  }
+
+  const total = Object.values(resultado).reduce((acc, b) => acc + b.size, 0);
+  console.log(`📊 Tamaño total imágenes comprimidas: ${(total / 1024 / 1024).toFixed(2)} MB`);
+
+  return resultado;
 }
