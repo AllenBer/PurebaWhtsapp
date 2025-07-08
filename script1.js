@@ -65,7 +65,9 @@ document.getElementById("generateZip").onclick = async () => {
   const fecha = new Date().toISOString().slice(0, 10);
   const zipName = `${baseName}_${fecha}`;
 
-  const comprimidas = await comprimirPorLote(images); // 💥 compresión por lote
+ const comprimidas = await comprimirExactoPorImagen(images);
+if (!comprimidas) return; // Detiene si excede los 4MB totales
+// 💥 compresión por lote
   zipBlob = await generarZipReducido(comprimidas, zipName, 4);
 
   if (!zipBlob) {
@@ -344,28 +346,39 @@ async function verificarTamañoYComprimir(blob, tipo = "PDF", maxMB = 2) {
   return finalBlob;
 }
 const MAX_TOTAL_BYTES = 4 * 1024 * 1024;
-const TARGET_PER_IMAGE = Math.floor(MAX_TOTAL_BYTES / 23); // ~178KB
+const TARGET_PER_IMAGE = Math.floor(MAX_TOTAL_BYTES / 23); // ≈ 178KB
+const MIN_QUALITY = 0.5;
 
-async function comprimirPorLote(imagenes) {
+async function comprimirExactoPorImagen(imagenes) {
   const resultado = {};
-  const calidadInicial = 0.85;
-  const resolucionMax = 1400;
+  let totalAcumulado = 0;
 
   for (const [nombre, blobOriginal] of Object.entries(imagenes)) {
-    let calidad = calidadInicial;
-    let comprimida = await compressImage(blobOriginal, resolucionMax, calidad);
+    let calidad = 0.85;
+    let comprimida = await compressImage(blobOriginal, 1400, calidad);
 
-    while (comprimida.size > TARGET_PER_IMAGE && calidad > 0.5) {
+    while (comprimida.size > TARGET_PER_IMAGE && calidad > MIN_QUALITY) {
       calidad -= 0.05;
-      comprimida = await compressImage(blobOriginal, resolucionMax, calidad);
+      comprimida = await compressImage(blobOriginal, 1400, calidad);
     }
 
-    resultado[nombre] = comprimida;
-    console.log(`📦 ${nombre} → ${(comprimida.size / 1024).toFixed(1)} KB, calidad: ${calidad.toFixed(2)}`);
+    // Verificación final
+    if (comprimida.size <= TARGET_PER_IMAGE) {
+      resultado[nombre] = comprimida;
+      totalAcumulado += comprimida.size;
+      console.log(`✅ ${nombre}: ${(comprimida.size / 1024).toFixed(1)} KB [calidad ${calidad.toFixed(2)}]`);
+    } else {
+      console.warn(`⚠️ ${nombre}: no pudo comprimirse debajo de 178 KB. Tamaño: ${(comprimida.size / 1024).toFixed(1)} KB`);
+    }
   }
 
-  const total = Object.values(resultado).reduce((acc, b) => acc + b.size, 0);
-  console.log(`📊 Tamaño total imágenes comprimidas: ${(total / 1024 / 1024).toFixed(2)} MB`);
+  console.log(`📦 Tamaño acumulado: ${(totalAcumulado / 1024 / 1024).toFixed(2)} MB`);
+
+  if (totalAcumulado > MAX_TOTAL_BYTES) {
+    alert("❌ El total de las imágenes comprimidas excede los 4 MB.");
+    return null;
+  }
 
   return resultado;
 }
+
