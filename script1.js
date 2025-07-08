@@ -141,7 +141,7 @@ document.getElementById("generateZip").onclick = async () => {
     document.getElementById("cameraModal").style.display = "none";
   };
 };
-
+//////////////////////////////////////////////////
 async function openCamera(docName) {
   const video = document.getElementById("camera");
   const modal = document.getElementById("cameraModal");
@@ -197,7 +197,25 @@ async function openCamera(docName) {
     modal.hidden = true;
   }
 }
+function recortarCentro(canvas, porcentaje = 0.85) {
+  const ctx = canvas.getContext("2d");
+  const ancho = canvas.width;
+  const alto = canvas.height;
+  const nuevoAncho = ancho * porcentaje;
+  const nuevoAlto = alto * porcentaje;
+  const x = (ancho - nuevoAncho) / 2;
+  const y = (alto - nuevoAlto) / 2;
 
+  const imagenRecortada = ctx.getImageData(x, y, nuevoAncho, nuevoAlto);
+  const nuevoCanvas = document.createElement("canvas");
+  nuevoCanvas.width = nuevoAncho;
+  nuevoCanvas.height = nuevoAlto;
+  nuevoCanvas.getContext("2d").putImageData(imagenRecortada, 0, 0);
+  return nuevoCanvas;
+}
+
+
+/////////////////////////////////////////////////////
 function isImageBlurry(canvas, threshold = 20) {
   const context = canvas.getContext("2d");
   const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
@@ -264,51 +282,40 @@ async function generarPDFReducido(imagenes, maxMB = 4) {
 
     const entries = Object.entries(imagenes);
     for (let i = 0; i < entries.length; i++) {
-      const [docName, blob] = entries[i];
+      const [, blob] = entries[i]; // ya no usamos docName
       const comprimida = await compressImage(blob, 1024, calidad);
       const imageDataUrl = await blobToDataURL(comprimida);
 
       const imgProps = pdf.getImageProperties(imageDataUrl);
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 20;
-      const maxWidth = pageWidth - margin * 2;
-      const maxHeight = pageHeight - margin * 2 - 10;
 
-      let drawWidth = imgProps.width;
-      let drawHeight = imgProps.height;
-      const scale = Math.min(maxWidth / drawWidth, maxHeight / drawHeight);
-      drawWidth *= scale;
-      drawHeight *= scale;
-
-      const x = (pageWidth - drawWidth) / 2;
-      const y = margin + 10;
+      // Sin márgenes, imagen expandida
+      const drawWidth = pageWidth;
+      const drawHeight = pageHeight;
+      const x = 0;
+      const y = 0;
 
       if (i > 0) pdf.addPage();
-      pdf.setFontSize(12);
-      pdf.text(docName, pageWidth / 2, margin, { align: "center" });
       pdf.addImage(imageDataUrl, "JPEG", x, y, drawWidth, drawHeight, undefined, "FAST");
     }
 
-    finalBlob = pdf.output("blob");
+    finalBlob = pdf.output("blob"); // ← Asegura formato correcto
     if (finalBlob.size <= maxBytes) {
       console.log(`✅ PDF comprimido a ${(finalBlob.size / 1024 / 1024).toFixed(4)} MB con calidad ${calidad}`);
       return finalBlob;
     }
   }
 
-  console.warn("⚠️ No se pudo reducir el PDF a menos de 2MB sin perder calidad visual.");
+  console.warn("⚠️ No se pudo reducir el PDF debajo de 4 MB sin perder calidad visual.");
   return finalBlob;
 }
-
-
-
+//////////////////////////////////////////////////
 async function verificarTamañoYComprimir(blob, tipo = "PDF", maxMB = 2) {
   const maxBytes = maxMB * 1024 * 1024;
-
   if (blob.size <= maxBytes) return blob;
 
-  const intentos = [0.7, 0.5, 0.3]; // calidad
+  const intentos = [0.7, 0.5, 0.3];
   let finalBlob = blob;
 
   for (const calidad of intentos) {
@@ -316,31 +323,20 @@ async function verificarTamañoYComprimir(blob, tipo = "PDF", maxMB = 2) {
     const entries = Object.entries(images);
 
     for (let i = 0; i < entries.length; i++) {
-      const [docName, blob] = entries[i];
+      const [, blob] = entries[i];
       const compressed = await compressImage(blob, 700, calidad);
       const imageDataUrl = await blobToDataURL(compressed);
 
       const imgProps = pdf.getImageProperties(imageDataUrl);
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 20;
-      const maxWidth = pageWidth - margin * 2;
-      const maxHeight = pageHeight - margin * 2 - 10;
 
-      let drawWidth = imgProps.width;
-      let drawHeight = imgProps.height;
-
-      const scale = Math.min(maxWidth / drawWidth, maxHeight / drawHeight);
-      drawWidth *= scale;
-      drawHeight *= scale;
-
-      const x = (pageWidth - drawWidth) / 2;
-      const y = margin + 10;
+      const drawWidth = pageWidth;
+      const drawHeight = pageHeight;
+      const x = 0;
+      const y = 0;
 
       if (i > 0) pdf.addPage();
-      pdf.setFontSize(12);
-      pdf.setTextColor(40);
-      pdf.text(docName, pageWidth / 2, margin, { align: "center" });
       pdf.addImage(imageDataUrl, "JPEG", x, y, drawWidth, drawHeight, undefined, "FAST");
     }
 
@@ -352,9 +348,10 @@ async function verificarTamañoYComprimir(blob, tipo = "PDF", maxMB = 2) {
     }
   }
 
-  console.warn("⚠️ No se pudo reducir el PDF debajo de 2MB sin perder mucha calidad.");
+  console.warn("⚠️ No se pudo reducir el PDF debajo de 2 MB sin perder mucha calidad.");
   return finalBlob;
 }
+/////////////////////////////////////////////////////////////////////////////
 const MAX_TOTAL_BYTES = 4 * 1024 * 1024;
 const TARGET_PER_IMAGE = Math.floor(MAX_TOTAL_BYTES / 23); // ≈ 178KB
 const MIN_QUALITY = 0.5;
