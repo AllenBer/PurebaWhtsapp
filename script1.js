@@ -198,6 +198,7 @@ async function openCamera(docName) {
   }
 }
 
+
 /////////////////////////////////////////////////////
 function isImageBlurry(canvas, threshold = 20) {
   const context = canvas.getContext("2d");
@@ -366,3 +367,5 @@ async function comprimirExactoPorImagen(imagenes) {
   if (totalAcumulado > MAX_TOTAL_BYTES) return null;
   return resultado;
 }
+
+
