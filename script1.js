@@ -57,6 +57,9 @@ window.onload = () => {
   renderList(generalDocs, "doc-general");
   renderList(empresaDocs, "doc-empresa");
 
+    ///////////generar archivo zip
+  
+
 document.getElementById("generateZip").onclick = async () => {
   const baseName = document.getElementById("zipName").value.trim();
   if (!baseName) return alert("⚠️ Ingresa un nombre para el ZIP");
@@ -65,10 +68,16 @@ document.getElementById("generateZip").onclick = async () => {
   const fecha = new Date().toISOString().slice(0, 10);
   const zipName = `${baseName}_${fecha}`;
 
- const comprimidas = await comprimirExactoPorImagen(images);
-if (!comprimidas) return; // Detiene si excede los 4MB totales
-// 💥 compresión por lote
-  zipBlob = await generarZipReducido(comprimidas, zipName, 4);
+  const comprimidas = await comprimirExactoPorImagen(images);
+
+  // 💥 Verificación si excede el tamaño total
+  if (!comprimidas) {
+    const continuar = confirm("⚠️ El total comprimido excede los 4 MB. ¿Deseas continuar de todos modos?");
+    if (!continuar) return;
+  }
+
+  // Genera el ZIP con las imágenes comprimidas
+  zipBlob = await generarZipReducido(comprimidas || images, zipName, 4); // usa imágenes originales si no se pudo comprimir
 
   if (!zipBlob) {
     return alert("❌ Error al generar el ZIP.");
@@ -85,6 +94,7 @@ if (!comprimidas) return; // Detiene si excede los 4MB totales
 
   alert("✅ ZIP generado y descargado.");
 };
+
 
 ///////dercargar archivo pdf 
 
@@ -381,4 +391,3 @@ async function comprimirExactoPorImagen(imagenes) {
 
   return resultado;
 }
-
