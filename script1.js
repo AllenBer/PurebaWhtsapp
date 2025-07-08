@@ -197,23 +197,6 @@ async function openCamera(docName) {
     modal.hidden = true;
   }
 }
-function recortarCentro(canvas, porcentaje = 0.85) {
-  const ctx = canvas.getContext("2d");
-  const ancho = canvas.width;
-  const alto = canvas.height;
-  const nuevoAncho = ancho * porcentaje;
-  const nuevoAlto = alto * porcentaje;
-  const x = (ancho - nuevoAncho) / 2;
-  const y = (alto - nuevoAlto) / 2;
-
-  const imagenRecortada = ctx.getImageData(x, y, nuevoAncho, nuevoAlto);
-  const nuevoCanvas = document.createElement("canvas");
-  nuevoCanvas.width = nuevoAncho;
-  nuevoCanvas.height = nuevoAlto;
-  nuevoCanvas.getContext("2d").putImageData(imagenRecortada, 0, 0);
-  return nuevoCanvas;
-}
-
 
 /////////////////////////////////////////////////////
 function isImageBlurry(canvas, threshold = 20) {
