@@ -70,18 +70,15 @@ document.getElementById("generateZip").onclick = async () => {
 
   const comprimidas = await comprimirExactoPorImagen(images);
 
-  // 💥 Verificación si excede el tamaño total
   if (!comprimidas) {
-    const continuar = confirm("⚠️ El total comprimido excede los 4 MB. ¿Deseas continuar de todos modos?");
+    const continuar = confirm("⚠️ El total comprimido excede los 4 MB o hay imágenes inválidas. ¿Deseas continuar con las originales?");
     if (!continuar) return;
   }
 
-  // Genera el ZIP con las imágenes comprimidas
-  zipBlob = await generarZipReducido(comprimidas || images, zipName, 4); // usa imágenes originales si no se pudo comprimir
+  const loteZip = comprimidas ? comprimidas : images;
+  zipBlob = await generarZipReducido(loteZip, zipName, 4);
 
-  if (!zipBlob) {
-    return alert("❌ Error al generar el ZIP.");
-  }
+  if (!zipBlob) return alert("❌ Error al generar el ZIP.");
 
   const blobURL = URL.createObjectURL(zipBlob);
   document.zipBlobURL = blobURL;
@@ -94,6 +91,7 @@ document.getElementById("generateZip").onclick = async () => {
 
   alert("✅ ZIP generado y descargado.");
 };
+
 
 
 ///////dercargar archivo pdf 
@@ -110,13 +108,15 @@ document.getElementById("generateZip").onclick = async () => {
       return;
     }
 
-    if (!zipBlob) {
-      statusBox.innerText = "⚠️ Primero genera el ZIP antes de descargar el PDF.";
-      return;
+    const comprimidas = await comprimirExactoPorImagen(images);
+
+    if (!comprimidas) {
+      const continuar = confirm("⚠️ El total comprimido excede los 4 MB o hay imágenes inválidas. ¿Deseas continuar con las originales?");
+      if (!continuar) return;
     }
 
-    const comprimidas = await comprimirPorLote(images); // 💥 compresión por lote
-    const finalPDFBlob = await generarPDFReducido(comprimidas, 4);
+    const lotePDF = comprimidas ? comprimidas : images;
+    const finalPDFBlob = await generarPDFReducido(lotePDF, 4);
 
     const nombre = document.getElementById("zipName").value.trim() || "documentos";
     const fecha = new Date().toISOString().slice(0, 10);
@@ -372,22 +372,17 @@ async function comprimirExactoPorImagen(imagenes) {
       comprimida = await compressImage(blobOriginal, 1400, calidad);
     }
 
-    // Verificación final
     if (comprimida.size <= TARGET_PER_IMAGE) {
       resultado[nombre] = comprimida;
       totalAcumulado += comprimida.size;
       console.log(`✅ ${nombre}: ${(comprimida.size / 1024).toFixed(1)} KB [calidad ${calidad.toFixed(2)}]`);
     } else {
-      console.warn(`⚠️ ${nombre}: no pudo comprimirse debajo de 178 KB. Tamaño: ${(comprimida.size / 1024).toFixed(1)} KB`);
+      alert(`🚫 ${nombre} no pudo comprimirse debajo de 178 KB. Debes reescanearla.`);
     }
   }
 
-  console.log(`📦 Tamaño acumulado: ${(totalAcumulado / 1024 / 1024).toFixed(2)} MB`);
+  console.log(`📊 Total acumulado: ${(totalAcumulado / 1024 / 1024).toFixed(2)} MB`);
 
-  if (totalAcumulado > MAX_TOTAL_BYTES) {
-    alert("❌ El total de las imágenes comprimidas excede los 4 MB.");
-    return null;
-  }
-
+  if (totalAcumulado > MAX_TOTAL_BYTES) return null;
   return resultado;
 }
