@@ -47,6 +47,17 @@
   </div>
 
   <canvas id="snapshotCanvas" hidden></canvas>
+
+  <!-- Recorte de imagen -->
+<div id="cropContainer" hidden>
+  <h4>✂️ Recorta tu imagen</h4>
+  <img id="cropImage" style="max-width: 100%;" />
+  <div style="margin-top: 1rem;">
+    <button id="saveCrop">💾 Guardar</button>
+    <button id="cancelCrop">❌ Cancelar</button>
+  </div>
+</div>
+
 </div>
 
 
@@ -60,6 +71,10 @@
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-storage-compat.js"></script>
+  <!-- CropperJS para recortar la imagen -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+
 
   <!-- Tu script principal -->
 <script src="script1.js"></script>
