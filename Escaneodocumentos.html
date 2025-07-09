@@ -5,9 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Escaneo de Documentos</title>
   <link rel="stylesheet" href="styles.css" />
-
-  <!-- CropperJS CSS -->
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet" />
 </head>
 <body>
   <div class="container">
@@ -20,7 +17,7 @@
   </div>
 
   <section>
-    <h2>🗂️ DOCUMENTACIÓN GENERAL</h2>
+    <h2>&#x1F5CE; DOCUMENTACIÓN GENERAL</h2>
     <ul id="doc-general">
       <!-- Ítems generados dinámicamente -->
     </ul>
@@ -40,34 +37,22 @@
     <button id="downloadPDF">📄 Descargar PDF</button>
   </div>
 
-  <!-- Input oculto para seleccionar imágenes desde archivo -->
-  <input type="file" id="fileInput" accept="image/*" style="display:none" />
-
-  <!-- Modal cámara -->
   <div class="camera-modal" id="cameraModal" hidden>
-    <h3 id="docLabel">Escanear documento</h3>
-    <video id="camera" autoplay playsinline></video>
+  <h3 id="docLabel">Escanear documento</h3>
+  <video id="camera" autoplay playsinline></video>
 
-    <div class="camera-modal-controls">
-      <button id="captureBtn">📸 Tomar Foto</button>
-      <button id="minimizeCamera" class="min-btn">🔽 Minimizar</button>
-    </div>
-
-    <canvas id="snapshotCanvas" hidden></canvas>
+  <div class="camera-modal-controls">
+    <button id="captureBtn">📸 Tomar Foto</button>
+    <button id="minimizeCamera" class="min-btn">🔽 Minimizar</button>
   </div>
 
-  <!-- Contenedor para recorte manual -->
-  <div class="doc-row">
-  <span>📄 CURP</span>
-  <button onclick="openCamera('CURP')">📷 Escanear</button>
-  <button onclick="openCropModal('CURP')">✂️ Recortar</button>
-  <span id="status-CURP">❌</span>
+  <canvas id="snapshotCanvas" hidden></canvas>
 </div>
 
 
   <!-- Librerías necesarias -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
   <!-- Google API -->
   <script src="https://apis.google.com/js/api.js"></script>
@@ -76,10 +61,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-storage-compat.js"></script>
 
-  <!-- CropperJS JS -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
-
   <!-- Tu script principal -->
-  <script src="script1.js"></script>
+<script src="script1.js"></script>
 </body>
 </html>
