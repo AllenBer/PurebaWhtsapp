@@ -15,7 +15,6 @@ window.jsPDF = window.jspdf?.jsPDF || window.jsPDF;
 const CLIENT_ID = '447789838113-076qo17ps0bercefg0ln9kiokt9bodtv.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 let authInstance;
-let cropper;
 const images = {};
 let zipBlob = null;
 
@@ -46,12 +45,10 @@ function renderList(docs, containerId) {
     const safeId = doc.replace(/[^ -\u007F]+|[^\w\s]/gi, '').replace(/\s+/g, "_");
     const li = document.createElement("li");
     li.innerHTML = `
-  <span class="doc-label">${doc}</span>
-  <span class="doc-status" id="status-${safeId}">❌</span>
-  <button onclick="openCamera('${doc}')">📷 Escanear</button>
-  <button onclick="openFileAndCrop('${doc}')">✂️ Recortar</button>
-`;
-
+      <span class="doc-label">${doc}</span>
+      <span class="doc-status" id="status-${safeId}">❌</span>
+      <button onclick="openCamera('${doc}')">📷 Escanear</button>
+    `;
     ul.appendChild(li);
   });
 }
@@ -140,9 +137,6 @@ async function openCamera(docName) {
   modal.hidden = false;
   modal.style.display = "flex";
 
-  // Aquí guardamos el nombre del documento para usarlo después en el recorte
-  document.getElementById("cropContainer").dataset.docName = docName;
-
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: {
@@ -154,49 +148,35 @@ async function openCamera(docName) {
 
     video.srcObject = stream;
 
-    // Aquí seguiría el resto de tu código para captura...
-
-
     const oldBtn = document.getElementById("captureBtn");
     const newBtn = oldBtn.cloneNode(true);
     newBtn.id = "captureBtn";
     oldBtn.replaceWith(newBtn);
 
     newBtn.onclick = () => {
-  const context = canvas.getContext("2d");
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const context = canvas.getContext("2d");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-  const dataURL = canvas.toDataURL("image/jpeg");
+      canvas.toBlob(async (blob) => {
+        if (isImageBlurry(canvas)) {
+          alert("⚠️ La imagen parece borrosa. Toma la foto nuevamente.");
+          return;
+        }
 
-  // Oculta la cámara y muestra el recorte
-  document.getElementById("cameraModal").hidden = true;
+        const compressed = await compressImage(blob);
+        images[docName] = compressed;
 
-  const cropContainer = document.getElementById("cropContainer");
-  const cropImage = document.getElementById("cropImage");
+        const safeId = docName.replace(/[^ -\u007F]+|[^\w\s]/gi, '').replace(/\s+/g, "_");
+        const statusSpan = document.getElementById(`status-${safeId}`);
+        if (statusSpan) statusSpan.textContent = "✅";
 
-  cropImage.src = dataURL;
-  cropContainer.style.display = "block";
-
-  if (cropper) cropper.destroy();
-  cropper = new Cropper(cropImage, {
-    aspectRatio: NaN,
-    viewMode: 1
-  });
-
-  // Guarda el nombre del documento para después
-  cropContainer.dataset.docName = docName;
-
-  // Apaga la cámara (opcional si quieres liberar el recurso antes)
-  const stream = video.srcObject;
-  if (stream) {
-    stream.getTracks().forEach(track => track.stop());
-    video.srcObject = null;
-  }
-};
-
-
+        stream.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+        modal.hidden = true;
+      }, "image/jpeg", 0.9);
+    };
   } catch (err) {
     alert("🚫 Error al activar la cámara: " + err.message);
     modal.hidden = true;
@@ -229,37 +209,6 @@ function blobToDataURL(blob) {
     reader.readAsDataURL(blob);
   });
 }
-////////////////////////////////////////////////////////
-function openFileAndCrop(docName) {
-  const fileInput = document.getElementById("fileInput");
-  fileInput.onchange = async () => {
-    const file = fileInput.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const cropContainer = document.getElementById("cropContainer");
-      const cropImage = document.getElementById("cropImage");
-
-      cropImage.src = reader.result;
-      cropContainer.style.display = "block";
-      cropContainer.dataset.docName = docName;
-
-      if (cropper) cropper.destroy();
-      cropper = new Cropper(cropImage, {
-        aspectRatio: NaN,
-        viewMode: 1,
-      });
-    };
-    reader.readAsDataURL(file);
-  };
-  fileInput.value = ""; // Reset para poder seleccionar el mismo archivo otra vez
-  fileInput.click();
-}
-
-
-
-
 /////////////////////////////////kljkfgjbfgjk
 async function generarZipReducido(imagenes, nombreZip, maxMB = 4) {
   const maxBytes = maxMB * 1024 * 1024;
@@ -391,85 +340,3 @@ async function verificarTamañoYComprimir(blob, tipo = "PDF", maxMB = 2) {
   console.warn("⚠️ No se pudo reducir el PDF debajo de 2MB sin perder mucha calidad.");
   return finalBlob;
 }
-///////////////////////RECORTES///////////////////////
-// Listener fijo para tomar foto desde cámara y mostrar cropper
-document.getElementById("captureBtn").onclick = async () => {
-  const video = document.getElementById("camera");
-  const canvas = document.getElementById("snapshotCanvas");
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  const dataURL = canvas.toDataURL("image/jpeg");
-
-  // Convierte a blob y guarda directamente la imagen
-  const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.9));
-  const docName = document.getElementById("cropContainer").dataset.docName;
-  images[docName] = await compressImage(blob);
-
-  // Marca el documento como escaneado
-  const safeId = docName.replace(/[^ -\u007F]+|[^\w\s]/gi, '').replace(/\s+/g, "_");
-  const statusSpan = document.getElementById(`status-${safeId}`);
-  if (statusSpan) statusSpan.textContent = "✅";
-
-  // Cierra la cámara
-  const stream = video.srcObject;
-  if (stream) {
-    stream.getTracks().forEach(track => track.stop());
-    video.srcObject = null;
-  }
-
-  document.getElementById("cameraModal").hidden = true;
-  cropper.destroy();
-  cropper = null;
-};
-
-// Cancelar recorte
-document.getElementById("cancelCrop").onclick = () => {
-  document.getElementById("cropContainer").style.display = "none";
-  if (cropper) {
-    cropper.destroy();
-    cropper = null;
-  }
-};
-function openCropModal(docName) {
-  const cropContainer = document.getElementById("cropContainer");
-  const cropImage = document.getElementById("cropImage");
-  const imageBlob = images[docName];
-
-  if (!imageBlob) {
-    alert("❌ Aún no se ha escaneado este documento.");
-    return;
-  }
-
-  const reader = new FileReader();
-  reader.onload = () => {
-    cropImage.src = reader.result;
-    cropContainer.style.display = "block";
-    cropContainer.dataset.docName = docName;
-
-    if (cropper) cropper.destroy();
-    cropper = new Cropper(cropImage, {
-      aspectRatio: NaN,
-      viewMode: 1
-    });
-  };
-  reader.readAsDataURL(imageBlob);
-}
-
-document.getElementById("confirmCrop").onclick = async () => {
-  if (!cropper) return;
-
-  const croppedCanvas = cropper.getCroppedCanvas();
-  const croppedBlob = await new Promise(resolve => croppedCanvas.toBlob(resolve, "image/jpeg", 0.9));
-  const docName = document.getElementById("cropContainer").dataset.docName;
-  images[docName] = await compressImage(croppedBlob);
-
-  const safeId = docName.replace(/[^ -\u007F]+|[^\w\s]/gi, '').replace(/\s+/g, "_");
-  const statusSpan = document.getElementById(`status-${safeId}`);
-  if (statusSpan) statusSpan.textContent = "✅";
-
-  document.getElementById("cropContainer").style.display = "none";
-  cropper.destroy();
-  cropper = null;
-};
