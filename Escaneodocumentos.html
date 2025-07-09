@@ -47,16 +47,33 @@
   </div>
 
   <canvas id="snapshotCanvas" hidden></canvas>
+</div> <!-- AQUÍ CIERRA LA CÁMARA -->
 
- <!-- Recorte de imagen -->
-<div id="cropContainer" hidden>
+<!-- ⛔ Este bloque NO DEBE ir dentro de cameraModal -->
+<!-- ✅ Colócalo fuera como aquí abajo: -->
+
+<div id="cropContainer" hidden style="text-align:center;padding:1rem;">
   <h4>✂️ Recorta tu imagen</h4>
-  <img id="cropImage" style="max-width: 100%;" />
+  <img id="cropImage" style="max-width: 90%; border: 1px solid #ccc;" />
   <div style="margin-top: 1rem;">
     <button id="saveCrop">💾 Guardar</button>
     <button id="cancelCrop">❌ Cancelar</button>
   </div>
 </div>
+<style>
+  #cropContainer {
+    position: fixed;
+    top: 10%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: white;
+    border: 2px solid #444;
+    padding: 1rem;
+    z-index: 10000;
+    box-shadow: 0 0 20px rgba(0,0,0,0.2);
+  }
+</style>
+
 
   <!-- Librerías necesarias -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
