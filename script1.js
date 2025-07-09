@@ -17,6 +17,9 @@ const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 let authInstance;
 const images = {};
 let zipBlob = null;
+let cropper = null;
+let currentDocName = null;
+let originalBlob = null;
 
 
 function compressImage(blob, maxWidth = 700, quality = 0.8) {
@@ -165,23 +168,43 @@ async function openCamera(docName) {
           return;
         }
 
-        const compressed = await compressImage(blob);
-        images[docName] = compressed;
+        originalBlob = blob;
+        currentDocName = docName;
 
-        const safeId = docName.replace(/[^ -\u007F]+|[^\w\s]/gi, '').replace(/\s+/g, "_");
-        const statusSpan = document.getElementById(`status-${safeId}`);
-        if (statusSpan) statusSpan.textContent = "✅";
+        const cropURL = URL.createObjectURL(blob);
+        const cropImg = document.getElementById("cropImage");
+        cropImg.src = cropURL;
 
+        // Ocultar cámara y mostrar crop
+        modal.style.display = "none";
+        document.getElementById("cropContainer").hidden = false;
+
+        // Detener cámara
         stream.getTracks().forEach(track => track.stop());
         video.srcObject = null;
-        modal.hidden = true;
+
+        // Iniciar cropper
+        cropper?.destroy();
+        cropper = new Cropper(cropImg, {
+          aspectRatio: NaN,
+          viewMode: 1,
+          movable: true,
+          zoomable: true,
+          scalable: false,
+          rotatable: false
+        });
       }, "image/jpeg", 0.9);
     };
+
   } catch (err) {
     alert("🚫 Error al activar la cámara: " + err.message);
     modal.hidden = true;
   }
 }
+
+
+
+ 
 
 function isImageBlurry(canvas, threshold = 20) {
   const context = canvas.getContext("2d");
@@ -340,3 +363,37 @@ async function verificarTamañoYComprimir(blob, tipo = "PDF", maxMB = 2) {
   console.warn("⚠️ No se pudo reducir el PDF debajo de 2MB sin perder mucha calidad.");
   return finalBlob;
 }
+document.getElementById("saveCrop").onclick = async () => {
+  if (!cropper) return;
+
+  const canvas = cropper.getCroppedCanvas({
+    width: 1024,
+    height: 1024,
+    imageSmoothingQuality: "high"
+  });
+
+  canvas.toBlob(async (blob) => {
+    const compressed = await compressImage(blob);
+    images[currentDocName] = compressed;
+
+    const safeId = currentDocName.replace(/[^ -\u007F]+|[^\w\s]/gi, '').replace(/\s+/g, "_");
+    const statusSpan = document.getElementById(`status-${safeId}`);
+    if (statusSpan) statusSpan.textContent = "✅";
+
+    document.getElementById("cropContainer").hidden = true;
+    cropper.destroy();
+    cropper = null;
+    currentDocName = null;
+    originalBlob = null;
+
+    alert("✅ Imagen recortada y guardada correctamente.");
+  }, "image/jpeg", 0.9);
+};
+
+document.getElementById("cancelCrop").onclick = () => {
+  document.getElementById("cropContainer").hidden = true;
+  cropper?.destroy();
+  cropper = null;
+  currentDocName = null;
+  originalBlob = null;
+};
