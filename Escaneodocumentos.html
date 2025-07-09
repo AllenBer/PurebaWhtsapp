@@ -57,14 +57,13 @@
   </div>
 
   <!-- Contenedor para recorte manual -->
-  <div id="cropContainer" style="display: none; text-align: center; padding: 1rem;">
-    <h3>✂️ Recorta tu documento</h3>
-    <img id="cropImage" src="" style="max-width: 100%; border-radius: 10px; box-shadow: 0 0 10px #000;" />
-    <div style="margin-top: 1rem;">
-      <button id="confirmCrop" class="min-btn">✅ Usar Recorte</button>
-      <button id="cancelCrop" class="back-btn" style="margin-left: 1rem;">❌ Cancelar</button>
-    </div>
-  </div>
+  <div class="doc-row">
+  <span>📄 CURP</span>
+  <button onclick="openCamera('CURP')">📷 Escanear</button>
+  <button onclick="openCropModal('CURP')">✂️ Recortar</button>
+  <span id="status-CURP">❌</span>
+</div>
+
 
   <!-- Librerías necesarias -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
