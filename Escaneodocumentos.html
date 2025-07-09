@@ -46,6 +46,17 @@
     <button id="minimizeCamera" class="min-btn">🔽 Minimizar</button>
   </div>
 
+  <!-- 🖼️ Contenedor para recorte manual -->
+<div id="cropContainer" style="display: none; text-align: center; padding: 1rem;">
+  <h3>✂️ Recorta tu documento</h3>
+  <img id="cropImage" src="" style="max-width: 100%; border-radius: 10px; box-shadow: 0 0 10px #000;" />
+  <div style="margin-top: 1rem;">
+    <button id="confirmCrop" class="min-btn">✅ Usar Recorte</button>
+    <button id="cancelCrop" class="back-btn" style="margin-left: 1rem;">❌ Cancelar</button>
+  </div>
+</div>
+
+
   <canvas id="snapshotCanvas" hidden></canvas>
 </div>
 
@@ -60,6 +71,10 @@
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-storage-compat.js"></script>
+<!-- CropperJS CSS -->
+<link  href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet" />
+<!-- CropperJS JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 
   <!-- Tu script principal -->
 <script src="script1.js"></script>
