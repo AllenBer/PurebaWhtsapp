@@ -155,29 +155,31 @@ async function openCamera(docName) {
     oldBtn.replaceWith(newBtn);
 
     newBtn.onclick = () => {
-      const context = canvas.getContext("2d");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const context = canvas.getContext("2d");
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      canvas.toBlob(async (blob) => {
-        if (isImageBlurry(canvas)) {
-          alert("⚠️ La imagen parece borrosa. Toma la foto nuevamente.");
-          return;
-        }
+  const dataURL = canvas.toDataURL("image/jpeg");
+  const cropContainer = document.getElementById("cropContainer");
+  const cropImage = document.getElementById("cropImage");
 
-        const compressed = await compressImage(blob);
-        images[docName] = compressed;
+  cropImage.src = dataURL;
+  cropContainer.style.display = "block";
 
-        const safeId = docName.replace(/[^ -\u007F]+|[^\w\s]/gi, '').replace(/\s+/g, "_");
-        const statusSpan = document.getElementById(`status-${safeId}`);
-        if (statusSpan) statusSpan.textContent = "✅";
+  if (cropper) cropper.destroy();
+  cropper = new Cropper(cropImage, {
+    aspectRatio: NaN,
+    viewMode: 1
+  });
 
-        stream.getTracks().forEach(track => track.stop());
-        video.srcObject = null;
-        modal.hidden = true;
-      }, "image/jpeg", 0.9);
-    };
+  // Guardar el stream y docName para después
+  cropContainer.dataset.docName = docName;
+  cropContainer.dataset.streamActive = "true";
+  cropContainer.dataset.streamId = stream.id;
+  cropContainer.dataset.stream = stream;
+};
+
   } catch (err) {
     alert("🚫 Error al activar la cámara: " + err.message);
     modal.hidden = true;
@@ -366,19 +368,33 @@ document.getElementById("captureBtn").addEventListener("click", () => {
   });
 });
 
-document.getElementById("confirmCrop").addEventListener("click", () => {
+document.getElementById("confirmCrop").addEventListener("click", async () => {
   const croppedCanvas = cropper.getCroppedCanvas();
-  const croppedDataURL = croppedCanvas.toDataURL("image/png");
 
-  // Aquí puedes usar la imagen recortada para subirla o mostrarla
-  console.log("📸 Imagen recortada:", croppedDataURL);
+  if (!croppedCanvas) {
+    alert("❌ No se pudo recortar la imagen.");
+    return;
+  }
 
-  // Ocultar contenedor
+  const croppedBlob = await new Promise(resolve => croppedCanvas.toBlob(resolve, "image/jpeg", 0.9));
+
+  const docName = document.getElementById("cropContainer").dataset.docName;
+  images[docName] = await compressImage(croppedBlob); // Comprime antes de guardar
+
+  const safeId = docName.replace(/[^ -\u007F]+|[^\w\s]/gi, '').replace(/\s+/g, "_");
+  const statusSpan = document.getElementById(`status-${safeId}`);
+  if (statusSpan) statusSpan.textContent = "✅";
+
+  // Detener la cámara
+  const video = document.getElementById("camera");
+  const stream = video.srcObject;
+  if (stream) stream.getTracks().forEach(track => track.stop());
+  video.srcObject = null;
+
+  // Cerrar todo
   document.getElementById("cropContainer").style.display = "none";
-
-  // Si quieres guardarla como archivo o subirla a Firebase, hazlo aquí
+  document.getElementById("cameraModal").hidden = true;
 });
-
 document.getElementById("cancelCrop").addEventListener("click", () => {
   document.getElementById("cropContainer").style.display = "none";
   if (cropper) cropper.destroy();
