@@ -57,9 +57,6 @@ window.onload = () => {
   renderList(generalDocs, "doc-general");
   renderList(empresaDocs, "doc-empresa");
 
-    ///////////generar archivo zip
-  
-
 document.getElementById("generateZip").onclick = async () => {
   const baseName = document.getElementById("zipName").value.trim();
   if (!baseName) return alert("⚠️ Ingresa un nombre para el ZIP");
@@ -68,17 +65,12 @@ document.getElementById("generateZip").onclick = async () => {
   const fecha = new Date().toISOString().slice(0, 10);
   const zipName = `${baseName}_${fecha}`;
 
-  const comprimidas = await comprimirExactoPorImagen(images);
+  // ✅ Aquí se guarda correctamente el ZIP generado
+  zipBlob = await generarZipReducido(images, zipName, 4); // ahora acepta hasta 4MB
 
-  if (!comprimidas) {
-    const continuar = confirm("⚠️ El total comprimido excede los 4 MB o hay imágenes inválidas. ¿Deseas continuar con las originales?");
-    if (!continuar) return;
+  if (!zipBlob) {
+    return alert("❌ Error al generar el ZIP.");
   }
-
-  const loteZip = comprimidas ? comprimidas : images;
-  zipBlob = await generarZipReducido(loteZip, zipName, 4);
-
-  if (!zipBlob) return alert("❌ Error al generar el ZIP.");
 
   const blobURL = URL.createObjectURL(zipBlob);
   document.zipBlobURL = blobURL;
@@ -93,9 +85,6 @@ document.getElementById("generateZip").onclick = async () => {
 };
 
 
-
-///////dercargar archivo pdf 
-
   document.getElementById("downloadPDF").onclick = async () => {
   const statusBox = document.createElement("div");
   statusBox.style = "position:fixed;bottom:1rem;right:1rem;background:#fff;border:2px solid #333;padding:1rem;z-index:9999;font-family:monospace;";
@@ -108,15 +97,12 @@ document.getElementById("generateZip").onclick = async () => {
       return;
     }
 
-    const comprimidas = await comprimirExactoPorImagen(images);
-
-    if (!comprimidas) {
-      const continuar = confirm("⚠️ El total comprimido excede los 4 MB o hay imágenes inválidas. ¿Deseas continuar con las originales?");
-      if (!continuar) return;
+    if (!zipBlob) {
+      statusBox.innerText = "⚠️ Primero genera el ZIP antes de descargar el PDF.";
+      return;
     }
 
-    const lotePDF = comprimidas ? comprimidas : images;
-    const finalPDFBlob = await generarPDFReducido(lotePDF, 4);
+    const finalPDFBlob = await generarPDFReducido(images, 4);          // ahora acepta hasta 4MB
 
     const nombre = document.getElementById("zipName").value.trim() || "documentos";
     const fecha = new Date().toISOString().slice(0, 10);
@@ -136,12 +122,11 @@ document.getElementById("generateZip").onclick = async () => {
   setTimeout(() => statusBox.remove(), 8000);
 };
 
-
   document.getElementById("minimizeCamera").onclick = () => {
     document.getElementById("cameraModal").style.display = "none";
   };
 };
-//////////////////////////////////////////////////
+
 async function openCamera(docName) {
   const video = document.getElementById("camera");
   const modal = document.getElementById("cameraModal");
@@ -198,8 +183,6 @@ async function openCamera(docName) {
   }
 }
 
-
-/////////////////////////////////////////////////////
 function isImageBlurry(canvas, threshold = 20) {
   const context = canvas.getContext("2d");
   const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
@@ -266,40 +249,51 @@ async function generarPDFReducido(imagenes, maxMB = 4) {
 
     const entries = Object.entries(imagenes);
     for (let i = 0; i < entries.length; i++) {
-      const [, blob] = entries[i]; // ya no usamos docName
+      const [docName, blob] = entries[i];
       const comprimida = await compressImage(blob, 1024, calidad);
       const imageDataUrl = await blobToDataURL(comprimida);
 
       const imgProps = pdf.getImageProperties(imageDataUrl);
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 20;
+      const maxWidth = pageWidth - margin * 2;
+      const maxHeight = pageHeight - margin * 2 - 10;
 
-      // Sin márgenes, imagen expandida
-      const drawWidth = pageWidth;
-      const drawHeight = pageHeight;
-      const x = 0;
-      const y = 0;
+      let drawWidth = imgProps.width;
+      let drawHeight = imgProps.height;
+      const scale = Math.min(maxWidth / drawWidth, maxHeight / drawHeight);
+      drawWidth *= scale;
+      drawHeight *= scale;
+
+      const x = (pageWidth - drawWidth) / 2;
+      const y = margin + 10;
 
       if (i > 0) pdf.addPage();
+      pdf.setFontSize(12);
+      pdf.text(docName, pageWidth / 2, margin, { align: "center" });
       pdf.addImage(imageDataUrl, "JPEG", x, y, drawWidth, drawHeight, undefined, "FAST");
     }
 
-    finalBlob = pdf.output("blob"); // ← Asegura formato correcto
+    finalBlob = pdf.output("blob");
     if (finalBlob.size <= maxBytes) {
       console.log(`✅ PDF comprimido a ${(finalBlob.size / 1024 / 1024).toFixed(4)} MB con calidad ${calidad}`);
       return finalBlob;
     }
   }
 
-  console.warn("⚠️ No se pudo reducir el PDF debajo de 4 MB sin perder calidad visual.");
+  console.warn("⚠️ No se pudo reducir el PDF a menos de 2MB sin perder calidad visual.");
   return finalBlob;
 }
-//////////////////////////////////////////////////
+
+
+
 async function verificarTamañoYComprimir(blob, tipo = "PDF", maxMB = 2) {
   const maxBytes = maxMB * 1024 * 1024;
+
   if (blob.size <= maxBytes) return blob;
 
-  const intentos = [0.7, 0.5, 0.3];
+  const intentos = [0.7, 0.5, 0.3]; // calidad
   let finalBlob = blob;
 
   for (const calidad of intentos) {
@@ -307,20 +301,31 @@ async function verificarTamañoYComprimir(blob, tipo = "PDF", maxMB = 2) {
     const entries = Object.entries(images);
 
     for (let i = 0; i < entries.length; i++) {
-      const [, blob] = entries[i];
+      const [docName, blob] = entries[i];
       const compressed = await compressImage(blob, 700, calidad);
       const imageDataUrl = await blobToDataURL(compressed);
 
       const imgProps = pdf.getImageProperties(imageDataUrl);
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 20;
+      const maxWidth = pageWidth - margin * 2;
+      const maxHeight = pageHeight - margin * 2 - 10;
 
-      const drawWidth = pageWidth;
-      const drawHeight = pageHeight;
-      const x = 0;
-      const y = 0;
+      let drawWidth = imgProps.width;
+      let drawHeight = imgProps.height;
+
+      const scale = Math.min(maxWidth / drawWidth, maxHeight / drawHeight);
+      drawWidth *= scale;
+      drawHeight *= scale;
+
+      const x = (pageWidth - drawWidth) / 2;
+      const y = margin + 10;
 
       if (i > 0) pdf.addPage();
+      pdf.setFontSize(12);
+      pdf.setTextColor(40);
+      pdf.text(docName, pageWidth / 2, margin, { align: "center" });
       pdf.addImage(imageDataUrl, "JPEG", x, y, drawWidth, drawHeight, undefined, "FAST");
     }
 
@@ -332,40 +337,6 @@ async function verificarTamañoYComprimir(blob, tipo = "PDF", maxMB = 2) {
     }
   }
 
-  console.warn("⚠️ No se pudo reducir el PDF debajo de 2 MB sin perder mucha calidad.");
+  console.warn("⚠️ No se pudo reducir el PDF debajo de 2MB sin perder mucha calidad.");
   return finalBlob;
 }
-/////////////////////////////////////////////////////////////////////////////
-const MAX_TOTAL_BYTES = 4 * 1024 * 1024;
-const TARGET_PER_IMAGE = Math.floor(MAX_TOTAL_BYTES / 23); // ≈ 178KB
-const MIN_QUALITY = 0.5;
-
-async function comprimirExactoPorImagen(imagenes) {
-  const resultado = {};
-  let totalAcumulado = 0;
-
-  for (const [nombre, blobOriginal] of Object.entries(imagenes)) {
-    let calidad = 0.85;
-    let comprimida = await compressImage(blobOriginal, 1400, calidad);
-
-    while (comprimida.size > TARGET_PER_IMAGE && calidad > MIN_QUALITY) {
-      calidad -= 0.05;
-      comprimida = await compressImage(blobOriginal, 1400, calidad);
-    }
-
-    if (comprimida.size <= TARGET_PER_IMAGE) {
-      resultado[nombre] = comprimida;
-      totalAcumulado += comprimida.size;
-      console.log(`✅ ${nombre}: ${(comprimida.size / 1024).toFixed(1)} KB [calidad ${calidad.toFixed(2)}]`);
-    } else {
-      alert(`🚫 ${nombre} no pudo comprimirse debajo de 178 KB. Debes reescanearla.`);
-    }
-  }
-
-  console.log(`📊 Total acumulado: ${(totalAcumulado / 1024 / 1024).toFixed(2)} MB`);
-
-  if (totalAcumulado > MAX_TOTAL_BYTES) return null;
-  return resultado;
-}
-
-
