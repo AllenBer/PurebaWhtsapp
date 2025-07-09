@@ -37,14 +37,18 @@
     <button id="downloadPDF">📄 Descargar PDF</button>
   </div>
 
-  <!-- 📷 Modal de Cámara -->
   <div class="camera-modal" id="cameraModal" hidden>
-    <h3 id="docLabel">Escanear documento</h3>
-    <video id="camera" autoplay playsinline></video>
+  <h3 id="docLabel">Escanear documento</h3>
+  <video id="camera" autoplay playsinline></video>
+
+  <div class="camera-modal-controls">
     <button id="captureBtn">📸 Tomar Foto</button>
     <button id="minimizeCamera" class="min-btn">🔽 Minimizar</button>
-    <canvas id="snapshotCanvas" hidden></canvas>
   </div>
+
+  <canvas id="snapshotCanvas" hidden></canvas>
+</div>
+
 
   <!-- Librerías necesarias -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
