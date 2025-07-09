@@ -15,6 +15,7 @@ window.jsPDF = window.jspdf?.jsPDF || window.jsPDF;
 const CLIENT_ID = '447789838113-076qo17ps0bercefg0ln9kiokt9bodtv.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 let authInstance;
+let cropper;
 const images = {};
 let zipBlob = null;
 
@@ -340,3 +341,45 @@ async function verificarTamañoYComprimir(blob, tipo = "PDF", maxMB = 2) {
   console.warn("⚠️ No se pudo reducir el PDF debajo de 2MB sin perder mucha calidad.");
   return finalBlob;
 }
+///////////////////////RECORTES///////////////////////
+document.getElementById("captureBtn").addEventListener("click", () => {
+  const video = document.getElementById("camera");
+  const canvas = document.createElement("canvas");
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext("2d").drawImage(video, 0, 0);
+
+  const dataURL = canvas.toDataURL("image/png");
+
+  // Mostrar contenedor de recorte
+  const cropContainer = document.getElementById("cropContainer");
+  cropContainer.style.display = "block";
+
+  const cropImage = document.getElementById("cropImage");
+  cropImage.src = dataURL;
+
+  // Inicializar Cropper
+  if (cropper) cropper.destroy();
+  cropper = new Cropper(cropImage, {
+    aspectRatio: NaN,
+    viewMode: 1
+  });
+});
+
+document.getElementById("confirmCrop").addEventListener("click", () => {
+  const croppedCanvas = cropper.getCroppedCanvas();
+  const croppedDataURL = croppedCanvas.toDataURL("image/png");
+
+  // Aquí puedes usar la imagen recortada para subirla o mostrarla
+  console.log("📸 Imagen recortada:", croppedDataURL);
+
+  // Ocultar contenedor
+  document.getElementById("cropContainer").style.display = "none";
+
+  // Si quieres guardarla como archivo o subirla a Firebase, hazlo aquí
+});
+
+document.getElementById("cancelCrop").addEventListener("click", () => {
+  document.getElementById("cropContainer").style.display = "none";
+  if (cropper) cropper.destroy();
+});
