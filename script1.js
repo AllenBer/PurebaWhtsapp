@@ -161,6 +161,10 @@ async function openCamera(docName) {
   context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
   const dataURL = canvas.toDataURL("image/jpeg");
+
+  // Oculta la cámara y muestra el recorte
+  document.getElementById("cameraModal").hidden = true;
+
   const cropContainer = document.getElementById("cropContainer");
   const cropImage = document.getElementById("cropImage");
 
@@ -173,12 +177,17 @@ async function openCamera(docName) {
     viewMode: 1
   });
 
-  // Guardar el stream y docName para después
+  // Guarda el nombre del documento para después
   cropContainer.dataset.docName = docName;
-  cropContainer.dataset.streamActive = "true";
-  cropContainer.dataset.streamId = stream.id;
-  cropContainer.dataset.stream = stream;
+
+  // Apaga la cámara (opcional si quieres liberar el recurso antes)
+  const stream = video.srcObject;
+  if (stream) {
+    stream.getTracks().forEach(track => track.stop());
+    video.srcObject = null;
+  }
 };
+
 
   } catch (err) {
     alert("🚫 Error al activar la cámara: " + err.message);
