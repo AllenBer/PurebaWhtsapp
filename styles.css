@@ -253,7 +253,7 @@ button:hover {
 
   #camera {
     width: 100%;
-    max-height: 70vh; /* espacio suficiente para que los botones entren */
+    max-height: vh; /* espacio suficiente para que los botones entren */
     border-radius: 10px;
     margin-top: 1rem;
   }
@@ -273,20 +273,4 @@ button:hover {
   flex-direction: column;
   align-items: center;
   width: 100%;
-}
-
-#cropContainer {
-  overflow-y: auto;
-  max-height: 100vh;
-  display: none;
-  padding: 1rem;
-  background: white;
-  z-index: 9999;
-}
-
-#cropImage {
-  max-width: 100%;
-  height: auto;
-  display: block;
-  margin: 0 auto;
 }
