@@ -393,59 +393,32 @@ async function verificarTamañoYComprimir(blob, tipo = "PDF", maxMB = 2) {
 }
 ///////////////////////RECORTES///////////////////////
 // Listener fijo para tomar foto desde cámara y mostrar cropper
-document.getElementById("captureBtn").onclick = () => {
+document.getElementById("captureBtn").onclick = async () => {
   const video = document.getElementById("camera");
   const canvas = document.getElementById("snapshotCanvas");
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
   const ctx = canvas.getContext("2d");
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
   const dataURL = canvas.toDataURL("image/jpeg");
 
-  // Oculta cámara y muestra cropper
-  document.getElementById("cameraModal").hidden = true;
+  // Convierte a blob y guarda directamente la imagen
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.9));
+  const docName = document.getElementById("cropContainer").dataset.docName;
+  images[docName] = await compressImage(blob);
 
-  const cropContainer = document.getElementById("cropContainer");
-  const cropImage = document.getElementById("cropImage");
+  // Marca el documento como escaneado
+  const safeId = docName.replace(/[^ -\u007F]+|[^\w\s]/gi, '').replace(/\s+/g, "_");
+  const statusSpan = document.getElementById(`status-${safeId}`);
+  if (statusSpan) statusSpan.textContent = "✅";
 
-  cropImage.src = dataURL;
-  cropContainer.style.display = "block";
-
-  // Usa docName que se guardó antes (en openCamera o openFileAndCrop)
-  if (!cropContainer.dataset.docName) cropContainer.dataset.docName = "Desconocido";
-
-  if (cropper) cropper.destroy();
-  cropper = new Cropper(cropImage, {
-    aspectRatio: NaN,
-    viewMode: 1
-  });
-
-  // Detener cámara
+  // Cierra la cámara
   const stream = video.srcObject;
   if (stream) {
     stream.getTracks().forEach(track => track.stop());
     video.srcObject = null;
   }
-};
 
-// Confirmar recorte y guardar imagen comprimida
-document.getElementById("confirmCrop").onclick = async () => {
-  if (!cropper) return alert("❌ No hay imagen para recortar.");
-
-  const croppedCanvas = cropper.getCroppedCanvas();
-  if (!croppedCanvas) return alert("❌ No se pudo recortar la imagen.");
-
-  const croppedBlob = await new Promise(resolve => croppedCanvas.toBlob(resolve, "image/jpeg", 0.9));
-  const docName = document.getElementById("cropContainer").dataset.docName;
-  images[docName] = await compressImage(croppedBlob);
-
-  const safeId = docName.replace(/[^ -\u007F]+|[^\w\s]/gi, '').replace(/\s+/g, "_");
-  const statusSpan = document.getElementById(`status-${safeId}`);
-  if (statusSpan) statusSpan.textContent = "✅";
-
-  // Cerrar cropper y modal
-  document.getElementById("cropContainer").style.display = "none";
   document.getElementById("cameraModal").hidden = true;
   cropper.destroy();
   cropper = null;
@@ -458,4 +431,45 @@ document.getElementById("cancelCrop").onclick = () => {
     cropper.destroy();
     cropper = null;
   }
+};
+function openCropModal(docName) {
+  const cropContainer = document.getElementById("cropContainer");
+  const cropImage = document.getElementById("cropImage");
+  const imageBlob = images[docName];
+
+  if (!imageBlob) {
+    alert("❌ Aún no se ha escaneado este documento.");
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    cropImage.src = reader.result;
+    cropContainer.style.display = "block";
+    cropContainer.dataset.docName = docName;
+
+    if (cropper) cropper.destroy();
+    cropper = new Cropper(cropImage, {
+      aspectRatio: NaN,
+      viewMode: 1
+    });
+  };
+  reader.readAsDataURL(imageBlob);
+}
+
+document.getElementById("confirmCrop").onclick = async () => {
+  if (!cropper) return;
+
+  const croppedCanvas = cropper.getCroppedCanvas();
+  const croppedBlob = await new Promise(resolve => croppedCanvas.toBlob(resolve, "image/jpeg", 0.9));
+  const docName = document.getElementById("cropContainer").dataset.docName;
+  images[docName] = await compressImage(croppedBlob);
+
+  const safeId = docName.replace(/[^ -\u007F]+|[^\w\s]/gi, '').replace(/\s+/g, "_");
+  const statusSpan = document.getElementById(`status-${safeId}`);
+  if (statusSpan) statusSpan.textContent = "✅";
+
+  document.getElementById("cropContainer").style.display = "none";
+  cropper.destroy();
+  cropper = null;
 };
