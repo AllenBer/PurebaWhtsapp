@@ -17,9 +17,7 @@ const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 let authInstance;
 const images = {};
 let zipBlob = null;
-let cropper = null;
-let currentDocName = null;
-let originalBlob = null;
+
 
 
 function compressImage(blob, maxWidth = 700, quality = 0.8) {
@@ -363,6 +361,12 @@ async function verificarTamañoYComprimir(blob, tipo = "PDF", maxMB = 2) {
   console.warn("⚠️ No se pudo reducir el PDF debajo de 2MB sin perder mucha calidad.");
   return finalBlob;
 }
+
+////////////////////////////////////////////////////////////////////////
+let cropper = null;
+let currentDocName = null;
+let originalBlob = null;
+
 document.getElementById("saveCrop").onclick = async () => {
   if (!cropper) return;
 
