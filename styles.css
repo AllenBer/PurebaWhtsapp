@@ -252,11 +252,12 @@ button:hover {
   }
 
   #camera {
-    width: 100%;
-    max-height: 75vh; /* espacio suficiente para que los botones entren */
+    width: 90%; /* Ocupa el 90% del ancho de su contenedor */
+    max-height: 70vh; /* Máximo 70% de la altura de la ventana de visualización */
     border-radius: 10px;
-    margin-top: 1rem;
-  }
+    border: 2px solid #fff;
+    background: #000;
+}
 
   #captureBtn,
   #minimizeCamera {
