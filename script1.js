@@ -155,44 +155,49 @@ async function openCamera(docName) {
     oldBtn.replaceWith(newBtn);
 
     newBtn.onclick = () => {
-      const context = canvas.getContext("2d");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  console.log("📸 Botón de captura presionado"); // <-- AÑADE ESTO
 
-      canvas.toBlob(async (blob) => {
-        if (isImageBlurry(canvas)) {
-          alert("⚠️ La imagen parece borrosa. Toma la foto nuevamente.");
-          return;
-        }
+  const context = canvas.getContext("2d");
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        originalBlob = blob;
-        currentDocName = docName;
+  canvas.toBlob(async (blob) => {
+    console.log("✅ Imagen capturada"); // <-- AÑADE ESTO
 
-        const cropURL = URL.createObjectURL(blob);
-        const cropImg = document.getElementById("cropImage");
-        cropImg.src = cropURL;
+    if (isImageBlurry(canvas)) {
+      alert("⚠️ La imagen parece borrosa. Toma la foto nuevamente.");
+      return;
+    }
 
-        // Ocultar cámara y mostrar crop
-        modal.style.display = "none";
-        document.getElementById("cropContainer").hidden = false;
+    originalBlob = blob;
+    currentDocName = docName;
 
-        // Detener cámara
-        stream.getTracks().forEach(track => track.stop());
-        video.srcObject = null;
+    const cropURL = URL.createObjectURL(blob);
+    const cropImg = document.getElementById("cropImage");
+    cropImg.src = cropURL;
 
-        // Iniciar cropper
-        cropper?.destroy();
-        cropper = new Cropper(cropImg, {
-          aspectRatio: NaN,
-          viewMode: 1,
-          movable: true,
-          zoomable: true,
-          scalable: false,
-          rotatable: false
-        });
-      }, "image/jpeg", 0.9);
-    };
+    // Ocultar cámara y mostrar crop
+    modal.style.display = "none";
+    document.getElementById("cropContainer").hidden = false;
+
+    // Detener cámara
+    stream.getTracks().forEach(track => track.stop());
+    video.srcObject = null;
+
+    // Iniciar cropper
+    cropper?.destroy();
+    cropper = new Cropper(cropImg, {
+      aspectRatio: NaN,
+      viewMode: 1,
+      movable: true,
+      zoomable: true,
+      scalable: false,
+      rotatable: false
+    });
+  }, "image/jpeg", 0.9);
+};
+
 
   } catch (err) {
     alert("🚫 Error al activar la cámara: " + err.message);
