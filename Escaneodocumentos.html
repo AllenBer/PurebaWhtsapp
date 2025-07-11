@@ -37,20 +37,32 @@
     <button id="downloadPDF">📄 Descargar PDF</button>
   </div>
 
-  <div class="camera-modal" id="cameraModal" hidden>
+ <div class="camera-modal" id="cameraModal" hidden>
   <h3 id="docLabel">Escanear documento</h3>
   <video id="camera" autoplay playsinline></video>
 
   <div class="camera-modal-controls">
     <button id="captureBtn">📸 Tomar Foto</button>
+    <button id="cropBtn" disabled>✂️ Recortar Foto</button>
+    <button id="saveCroppedBtn" hidden>💾 Guardar Recorte</button>
     <button id="minimizeCamera" class="min-btn">🔽 Minimizar</button>
   </div>
 
+  <!-- Canvas oculto para capturar la imagen -->
   <canvas id="snapshotCanvas" hidden></canvas>
+
+  <!-- Imagen para vista previa y recorte -->
+  <div style="margin-top: 1rem;">
+    <img id="previewImage" style="max-width: 100%; display: none;" />
+  </div>
 </div>
 
+<!-- Cropper.js -->
+<link href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
 
-  <!-- Librerías necesarias -->
+
+<!-- Librerías necesarias -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
