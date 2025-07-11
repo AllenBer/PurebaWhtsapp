@@ -14,6 +14,10 @@
     <div id="document-container">
         </div>
 
+        <div style="margin-bottom: 20px;">
+  <label for="input-imss">Número de IMSS:</label>
+  <input type="text" id="input-imss" placeholder="Escribe el número de IMSS aquí" style="padding: 5px; width: 250px;"/>
+</div>
     <div class="button-group">
         <button onclick="generateZip()">📦 Generar ZIP</button>
         <button onclick="generatePDFs()">🖨 Descargar en PDF</button>
@@ -32,6 +36,9 @@
             <button onclick="closeCrop()">❌ Cancelar</button>
         </div>
     </div>
+
+
+
 
     <script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCvReady();"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip"></script>
