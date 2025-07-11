@@ -42,14 +42,34 @@ window.onload = () => {
         container.appendChild(div);
     });
 
-    // Botón regresar agregado al final del contenedor
-    const backBtn = document.createElement('button');
-    backBtn.textContent = '⬅️ Regresar al Dashboard';
-    backBtn.style.marginTop = '20px';
-    backBtn.onclick = () => {
-        window.location.href = 'dashboard.html';
-    };
-    container.appendChild(backBtn);
+    // Crear contenedor flex para título + botón
+    const header = document.createElement('div');
+    header.id = 'header';
+    header.style.display = 'flex';
+    header.style.alignItems = 'center';
+    header.style.gap = '10px';
+    header.style.marginBottom = '20px';
+
+    // Buscar el título h1 en el DOM
+    const title = document.querySelector('h1');
+
+    if (title) {
+        // Mover el título dentro del nuevo contenedor
+        title.parentNode.insertBefore(header, title);
+        header.appendChild(title);
+
+        // Crear el botón regresar
+        const backBtn = document.createElement('button');
+        backBtn.textContent = '⬅️ Regresar al Dashboard';
+        backBtn.style.padding = '5px 10px';
+        backBtn.style.cursor = 'pointer';
+        backBtn.onclick = () => {
+            window.location.href = 'dashboard.html';
+        };
+
+        // Agregar el botón al contenedor header, junto al título
+        header.appendChild(backBtn);
+    }
 };
 
 function startLiveCamera(docName) {
