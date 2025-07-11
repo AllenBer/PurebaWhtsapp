@@ -103,8 +103,15 @@ function takePhoto() {
         alert("OpenCV.js no está cargado. No se puede realizar el recorte automático.");
         // Si OpenCV no está listo, guarda la imagen con calidad ajustada
         // Calidad alta para "Contrato laboral", estándar para los demás
-        const imageDataURL = canvas.toDataURL("image/jpeg", currentLiveDoc === "Contrato laboral" ? 1.0 : 0.7);
-        scannedImages[currentLiveDoc] = imageDataURL;
+        let finalCanvas = canvas;
+
+if (currentLiveDoc !== "Contrato laboral") {
+    finalCanvas = resizeCanvas(canvas, 900, 1200);
+}
+
+const imageDataURL = finalCanvas.toDataURL("image/jpeg", currentLiveDoc === "Contrato laboral" ? 1.0 : 0.7);
+scannedImages[currentLiveDoc] = imageDataURL;
+
         document.getElementById(`preview-${currentLiveDoc}`).src = imageDataURL;
         document.getElementById(`preview-${currentLiveDoc}`).style.display = 'block';
         document.getElementById(`status-${currentLiveDoc}`).textContent = '⚠️'; // Indicador de que no se pudo procesar
@@ -338,13 +345,22 @@ function confirmCrop() {
         return;
     }
 
-    // Calidad JPEG al confirmar recorte manual: 1.0 para Contrato laboral, 0.7 para los demás
-    const quality = currentDocForCrop === "Contrato laboral" ? 1.0 : 0.65; // Ajusta a 0.6 si necesitas aún menos tamaño
-    const croppedDataUrl = canvas.toDataURL("image/jpeg", quality);
-    scannedImages[currentDocForCrop] = croppedDataUrl;
-    document.getElementById(`preview-${currentDocForCrop}`).src = croppedDataUrl;
-    document.getElementById(`status-${currentDocForCrop}`).textContent = '🟩';
-    closeCrop();
+   // Calidad JPEG al confirmar recorte manual con redimensionamiento:
+let finalCanvas = canvas;
+
+if (currentDocForCrop !== "Contrato laboral") {
+    finalCanvas = resizeCanvas(canvas, 900, 1200);
+}
+
+const quality = currentDocForCrop === "Contrato laboral" ? 1.0 : 0.7; // Ajusta calidad aquí si quieres
+
+const croppedDataUrl = finalCanvas.toDataURL("image/jpeg", quality);
+
+scannedImages[currentDocForCrop] = croppedDataUrl;
+document.getElementById(`preview-${currentDocForCrop}`).src = croppedDataUrl;
+document.getElementById(`status-${currentDocForCrop}`).textContent = '🟩';
+closeCrop();
+
 
 }
 
@@ -415,7 +431,7 @@ async function generateOptimizedPDF() {
     }
 
     const fecha = getCurrentDateFormatted();
-    const qualityLevels = [0.9, 0.8, 0.75, 0.7, 0.65, 0.6]; // De mejor a menor calidad
+    const qualityLevels = [1.0, 0.95, 0.9, 0.85, 0.8, 0.75]; // De mejor a menor calidad
     let finalPdfBlob = null;
 
     for (let quality of qualityLevels) {
@@ -460,6 +476,23 @@ async function generateOptimizedPDF() {
     link.remove();
     URL.revokeObjectURL(url);
 }
+
+function resizeCanvas(originalCanvas, maxWidth, maxHeight) {
+    const ratio = Math.min(maxWidth / originalCanvas.width, maxHeight / originalCanvas.height);
+    const newWidth = originalCanvas.width * ratio;
+    const newHeight = originalCanvas.height * ratio;
+
+    const resizedCanvas = document.createElement('canvas');
+    resizedCanvas.width = newWidth;
+    resizedCanvas.height = newHeight;
+
+    const ctx = resizedCanvas.getContext('2d');
+    ctx.drawImage(originalCanvas, 0, 0, newWidth, newHeight);
+
+    return resizedCanvas;
+}
+
+
 ////////////////////////////////////////////////////////////////
 function compressImage(dataURL, quality) {
     return new Promise((resolve) => {
