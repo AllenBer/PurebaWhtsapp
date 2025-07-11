@@ -41,6 +41,15 @@ window.onload = () => {
         `;
         container.appendChild(div);
     });
+
+    // Botón regresar agregado al final del contenedor
+    const backBtn = document.createElement('button');
+    backBtn.textContent = '⬅️ Regresar al Dashboard';
+    backBtn.style.marginTop = '20px';
+    backBtn.onclick = () => {
+        window.location.href = 'dashboard.html';
+    };
+    container.appendChild(backBtn);
 };
 
 function startLiveCamera(docName) {
