@@ -60,7 +60,7 @@ window.onload = () => {
 
         // Crear el botón regresar
         const backBtn = document.createElement('button');
-        backBtn.textContent = '⬅️ Regresar al Dashboard';
+        backBtn.textContent = '⬅️ Regresar ';
         backBtn.style.padding = '5px 10px';
         backBtn.style.cursor = 'pointer';
         backBtn.onclick = () => {
