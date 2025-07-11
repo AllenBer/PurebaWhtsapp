@@ -106,3 +106,16 @@ button:hover {
     border: 2px solid #fff;
     background: #000;
 }
+#imss-and-buttons {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+#imss-and-buttons > div {
+  display: flex;
+  flex-direction: column;
+}
