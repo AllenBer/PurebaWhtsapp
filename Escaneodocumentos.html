@@ -5,7 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Escaneo de Documentos</title>
   <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet"/>
 </head>
+
 <body>
   <div class="container">
     <h1>📄 Escaneo de Documentación</h1>
@@ -33,34 +36,41 @@
   <div class="zip-controls" style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 1rem;">
     <label for="zipName">👤 Número de IMSS:</label>
     <input type="text" id="zipName" placeholder="Nombre del archivo ZIP" />
-    <button id="generateZip">📦 Generar ZIP</button>
-    <button id="downloadPDF">📄 Descargar PDF</button>
+    <button onclick="generateZip()">📦 Generar ZIP</button>
+    <button onclick="generatePDFs()">📄 Descargar PDF</button>
   </div>
 
+  <!-- Modal cámara -->
   <div class="camera-modal" id="cameraModal" hidden>
-  <h3 id="docLabel">Escanear documento</h3>
-  <video id="camera" autoplay playsinline></video>
-
-  <div class="camera-modal-controls">
-    <button id="captureBtn">📸 Tomar Foto</button>
-    <button id="minimizeCamera" class="min-btn">🔽 Minimizar</button>
+    <h3 id="docLabel">Escanear documento</h3>
+    <video id="live-video" autoplay playsinline></video>
+    <div class="camera-modal-controls">
+      <button onclick="takePhoto()">📸 Tomar Foto</button>
+      <button onclick="closeLiveCamera()" class="min-btn">🔽 Minimizar</button>
+    </div>
+    <canvas id="snapshotCanvas" hidden></canvas>
   </div>
 
-  <canvas id="snapshotCanvas" hidden></canvas>
-</div>
+  <!-- Modal de recorte -->
+  <div id="cropper-modal" hidden>
+    <div id="cropper-container">
+      <img id="cropper-image" />
+      <button onclick="confirmCrop()">✅ Confirmar recorte</button>
+      <button onclick="closeCrop()">❌ Cancelar</button>
+    </div>
+  </div>
 
   <!-- Librerías necesarias -->
-  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
-  <!-- Google API -->
-  <script src="https://apis.google.com/js/api.js"></script>
+  <script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCvReady();"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-storage-compat.js"></script>
 
   <!-- Tu script principal -->
-<script src="script1.js"></script>
+  <script src="script1.js"></script>
 </body>
 </html>
