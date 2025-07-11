@@ -60,7 +60,7 @@ window.onload = () => {
 
         // Crear el botón regresar
         const backBtn = document.createElement('button');
-        backBtn.textContent = '⬅️ Regresar ';
+        backBtn.textContent = '⬅️ Regresar';
         backBtn.style.padding = '5px 10px';
         backBtn.style.cursor = 'pointer';
         backBtn.onclick = () => {
@@ -355,37 +355,50 @@ function closeCrop() {
 }
 
 async function generateZip() {
+    const imss = document.getElementById('input-imss').value.trim();
+    if (!imss) {
+        alert("Por favor, ingresa el Número de IMSS antes de generar el ZIP.");
+        return;
+    }
+
+    const fecha = getCurrentDateFormatted();
     const zip = new JSZip();
 
     Object.entries(scannedImages).forEach(([docName, imageData], index) => {
         const base64 = imageData.split(',')[1];
-        zip.file(`${index + 1}_${docName}.jpg`, base64, { base64: true });
+        // Nombre archivo: IMSS_Fecha_Índice_Documento.jpg
+        zip.file(`${imss}_${fecha}_${index + 1}_${docName}.jpg`, base64, { base64: true });
     });
 
     const blob = await zip.generateAsync({ type: 'blob' });
     const sizeMB = blob.size / (1024 * 1024);
 
-    // Si el ZIP excede los 4MB, se muestra una advertencia
     if (sizeMB > 4) {
-        alert(`Advertencia: El tamaño del ZIP es ${sizeMB.toFixed(2)} MB, lo cual excede los 4 MB recomendados. Esto podría deberse a la alta resolución de las imágenes.`);
-        // Puedes optar por no descargar si excede el límite si lo prefieres:
-        // return;
+        alert(`Advertencia: El tamaño del ZIP es ${sizeMB.toFixed(2)} MB, lo cual excede los 4 MB recomendados.`);
     } else {
-         alert(`El ZIP pesa ${sizeMB.toFixed(2)} MB.`);
+        alert(`El ZIP pesa ${sizeMB.toFixed(2)} MB.`);
     }
 
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'DocumentosEscaneados.zip';
+    link.download = `Documentos_${imss}_${fecha}.zip`;
     document.body.appendChild(link);
     link.click();
     link.remove();
-    URL.revokeObjectURL(url); // Liberar el objeto URL
+    URL.revokeObjectURL(url);
 }
 
 function generatePDFs() {
     const { jsPDF } = window.jspdf;
+    const imss = document.getElementById('input-imss').value.trim();
+
+    if (!imss) {
+        alert("Por favor, ingresa el Número de IMSS antes de generar los PDFs.");
+        return;
+    }
+
+    const fecha = getCurrentDateFormatted();
 
     Object.entries(scannedImages).forEach(([docName, imageData], index) => {
         const pdf = new jsPDF();
@@ -394,9 +407,19 @@ function generatePDFs() {
         const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
 
         pdf.addImage(imageData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
-        pdf.save(`${index + 1}_${docName}.pdf`);
+        pdf.save(`${imss}_${fecha}_${index + 1}_${docName}.pdf`);
     });
 }
+
+// Función auxiliar para obtener fecha formateada
+function getCurrentDateFormatted() {
+    const today = new Date();
+    const dd = String(today.getDate()).padStart(2, '0');
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const yyyy = today.getFullYear();
+    return `${dd}-${mm}-${yyyy}`;
+}
+
 
 cropperImg.onload = null;
 cropperImg.src = "";
