@@ -340,3 +340,37 @@ async function verificarTamañoYComprimir(blob, tipo = "PDF", maxMB = 2) {
   console.warn("⚠️ No se pudo reducir el PDF debajo de 2MB sin perder mucha calidad.");
   return finalBlob;
 }
+////////////////////Funvion añadida 
+function actualizarPesoTotal(maxMB = 4) {
+  const totalBytes = Object.values(images).reduce((sum, blob) => sum + blob.size, 0);
+  const totalMB = (totalBytes / 1024 / 1024).toFixed(2);
+
+  const totalDocs = generalDocs.length + empresaDocs.length;
+  const completos = Object.keys(images).length;
+
+  const pesoBox = document.getElementById("pesoTotalBox");
+  if (pesoBox) {
+    pesoBox.textContent = `📦 Peso total actual: ${totalMB} MB / ${maxMB} MB · Documentos completos: ${completos} / ${totalDocs}`;
+    pesoBox.style.color = totalMB > maxMB ? "#b91c1c" : "#2b4c7e";
+  }
+}
+
+
+////////////////////////diseño descarga 
+function mostrarLoader() {
+  const overlay = document.createElement("div");
+  overlay.className = "loader-overlay";
+  overlay.id = "globalLoader";
+
+  const spinner = document.createElement("div");
+  spinner.className = "loader";
+
+  overlay.appendChild(spinner);
+  document.body.appendChild(overlay);
+}
+
+function ocultarLoader() {
+  const loader = document.getElementById("globalLoader");
+  if (loader) loader.remove();
+}
+}
