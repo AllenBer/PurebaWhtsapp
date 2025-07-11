@@ -399,17 +399,25 @@ function generatePDFs() {
     }
 
     const fecha = getCurrentDateFormatted();
+    const pdf = new jsPDF();
 
-    Object.entries(scannedImages).forEach(([docName, imageData], index) => {
-        const pdf = new jsPDF();
+    const entries = Object.entries(scannedImages);
+
+    entries.forEach(([docName, imageData], index) => {
+        if (index > 0) {
+            pdf.addPage(); // Agregar nueva página para cada imagen excepto la primera
+        }
+
         const imgProps = pdf.getImageProperties(imageData);
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
 
         pdf.addImage(imageData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
-        pdf.save(`${imss}_${fecha}_${index + 1}_${docName}.pdf`);
     });
+
+    pdf.save(`${imss}_${fecha}_Documentos.pdf`);
 }
+
 
 // Función auxiliar para obtener fecha formateada
 function getCurrentDateFormatted() {
