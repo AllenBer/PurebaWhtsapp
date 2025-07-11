@@ -12,384 +12,380 @@ const empresaDocs = [
 
 window.jsPDF = window.jspdf?.jsPDF || window.jsPDF;
 
-const CLIENT_ID = '447789838113-076qo17ps0bercefg0ln9kiokt9bodtv.apps.googleusercontent.com';
-const SCOPES = 'https://www.googleapis.com/auth/drive.file';
-let authInstance;
-const images = {};
-let zipBlob = null;
+const scannedImages = {};
+let cropper = null;
+let currentDocForCrop = null;
+let currentLiveDoc = null;
+let liveStream = null;
+let cv = null; // Variable para la instancia de OpenCV
 
-
-function compressImage(blob, maxWidth = 700, quality = 0.8) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    const url = URL.createObjectURL(blob);
-    img.onload = () => {
-      const scale = Math.min(1, maxWidth / img.width);
-      const canvas = document.createElement("canvas");
-      canvas.width = img.width * scale;
-      canvas.height = img.height * scale;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob((compressedBlob) => {
-        resolve(compressedBlob);
-        URL.revokeObjectURL(url);
-      }, "image/jpeg", quality);
-    };
-    img.src = url;
-  });
+// Esta función se llama cuando OpenCV.js ha terminado de cargar
+function onOpenCvReady() {
+    cv = window.cv; // Asigna la instancia de OpenCV a la variable global 'cv'
+    if (cv) {
+        console.log("OpenCV.js está listo!");
+        // Aquí puedes realizar cualquier inicialización adicional que necesites de OpenCV
+    } else {
+        console.error("Error al cargar OpenCV.js");
+        alert("Hubo un problema al cargar la librería de procesamiento de imágenes.");
+    }
 }
-
-function renderList(docs, containerId) {
-  const ul = document.getElementById(containerId);
- docs.forEach((doc, idx) => {
-  const safeId = doc.replace(/[^ -\u007F]+|[^\w\s]/gi, '').replace(/\s+/g, "_") + "_" + idx;
-
-    const li = document.createElement("li");
-    li.innerHTML = `
-      <span class="doc-label">${doc}</span>
-      <span class="doc-status" id="status-${safeId}">❌</span>
-      <button onclick="openCamera('${doc}')">📷 Escanear</button>
-    `;
-    ul.appendChild(li);
-  });
-}
-// 🧮 Crea indicador visual para el peso total acumulado
-const pesoTotalBox = document.createElement("div");
-pesoTotalBox.style = "margin-top:1rem;font-weight:500;color:#2b4c7e;background:#eef2f7;padding:0.8rem;border-radius:8px;";
-pesoTotalBox.id = "pesoTotalBox";
-pesoTotalBox.textContent = "📦 Peso total actual: 0.0 MB / 4 MB";
-document.querySelector(".zip-controls").appendChild(pesoTotalBox);
 
 window.onload = () => {
-  renderList(generalDocs, "doc-general");
-  renderList(empresaDocs, "doc-empresa");
+    const container = document.getElementById('document-container');
 
-document.getElementById("generateZip").onclick = async () => {
-  const baseName = document.getElementById("zipName").value.trim();
-  if (!baseName) return alert("⚠️ Ingresa un nombre para el ZIP");
-  if (Object.keys(images).length === 0) return alert("⚠️ No hay imágenes para generar el ZIP.");
-
-  mostrarLoader(); // 🌀 Muestra el spinner justo antes de iniciar el proceso
-
-  try {
-    const fecha = new Date().toISOString().slice(0, 10);
-    const zipName = `${baseName}_${fecha}`;
-
-    zipBlob = await generarZipReducido(images, zipName, 4); // ahora acepta hasta 4MB
-
-    if (!zipBlob) {
-      alert("❌ Error al generar el ZIP.");
-      return;
-    }
-
-    const blobURL = URL.createObjectURL(zipBlob);
-    document.zipBlobURL = blobURL;
-    document.generatedZipName = zipName;
-
-    const a = document.createElement("a");
-    a.href = blobURL;
-    a.download = zipName + ".zip";
-    a.click();
-
-    alert("✅ ZIP generado y descargado.");
-  } catch (err) {
-    console.error("❌ Error al generar el ZIP:", err);
-    alert("❌ Ocurrió un error. Revisa la consola.");
-  } finally {
-    ocultarLoader(); // ✅ Oculta el spinner sin importar si falló o tuvo éxito
-  }
-};
-
-document.getElementById("downloadPDF").onclick = async () => {
-  const statusBox = document.createElement("div");
-  statusBox.style = "position:fixed;bottom:1rem;right:1rem;background:#fff;border:2px solid #333;padding:1rem;z-index:9999;font-family:monospace;";
-  statusBox.innerText = "⏳ Generando PDF...";
-  document.body.appendChild(statusBox);
-
-  mostrarLoader(); // 🌀 Spinner activo
-
-  try {
-    if (typeof jsPDF !== "function") {
-      statusBox.innerText = "❌ jsPDF no está disponible.";
-      return;
-    }
-
-    if (!zipBlob) {
-      statusBox.innerText = "⚠️ Primero genera el ZIP antes de descargar el PDF.";
-      return;
-    }
-
-    const finalPDFBlob = await generarPDFReducido(images, 4); // ✅ Comprime a 4MB máximo
-
-    const nombre = document.getElementById("zipName").value.trim() || "documentos";
-    const fecha = new Date().toISOString().slice(0, 10);
-    const fileName = `${nombre}_${fecha}.pdf`;
-
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(finalPDFBlob);
-    a.download = fileName;
-    a.click();
-
-    statusBox.innerText = `✅ PDF generado: ${fileName}`;
-  } catch (err) {
-    console.error("❌ Error al generar el PDF:", err);
-    statusBox.innerText = "❌ Error al generar el PDF. Revisa la consola.";
-  } finally {
-    ocultarLoader(); // ✅ Oculta spinner
-    setTimeout(() => statusBox.remove(), 8000); // ✅ Limpia mensaje
-  }
-};
-
-
-async function openCamera(docName) {
-  const video = document.getElementById("camera");
-  const modal = document.getElementById("cameraModal");
-  const label = document.getElementById("docLabel");
-  const canvas = document.getElementById("snapshotCanvas");
-
-  label.textContent = `📄 Escaneando: ${docName}`;
-  modal.hidden = false;
-  modal.style.display = "flex";
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: "environment",
-        width: { ideal: 1920 },
-        height: { ideal: 1080 }
-      }
+    documents.forEach((docName, index) => {
+        const div = document.createElement('div');
+        div.className = 'document-box';
+        div.innerHTML = `
+            <label>${index + 1}. ${docName}</label><br>
+            <button onclick="startLiveCamera('${docName}')">📸 Escanear</button>
+            <span id="status-${docName}">❌</span>
+            <img id="preview-${docName}" class="image-preview" style="display:none;">
+            <button onclick="openCrop('${docName}')">✂️ Recortar (manual)</button>
+        `;
+        container.appendChild(div);
     });
+};
 
-    video.srcObject = stream;
+function startLiveCamera(docName) {
+    currentLiveDoc = docName;
 
-    const oldBtn = document.getElementById("captureBtn");
-    const newBtn = oldBtn.cloneNode(true);
-    newBtn.id = "captureBtn";
-    oldBtn.replaceWith(newBtn);
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+        .then((stream) => {
+            liveStream = stream;
+            document.getElementById("live-video").srcObject = stream;
+            document.getElementById("live-camera-modal").style.display = "flex";
+        })
+        .catch((error) => {
+            console.error("Error accediendo a la cámara:", error);
+            alert("No se pudo acceder a la cámara de este dispositivo. Asegúrate de dar permisos.");
+        });
+}
 
-    newBtn.onclick = () => {
-      const context = canvas.getContext("2d");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+function takePhoto() {
+    const video = document.getElementById("live-video");
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
 
-     canvas.toBlob(async (blob) => {
-  if (isImageBlurry(canvas)) {
-    alert("⚠️ La imagen parece borrosa. Toma la foto nuevamente.");
-    return;
-  }
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height); // Dibuja la imagen completa
 
-  const compressed = await compressImage(blob);
-  images[docName] = compressed;
+    closeLiveCamera(); // Cierra la cámara inmediatamente
 
-  const sizeKB = (compressed.size / 1024).toFixed(1);
-  const safeId = docName.replace(/[^ -\u007F]+|[^\w\s]/gi, '').replace(/\s+/g, "_");
-  const statusSpan = document.getElementById(`status-${safeId}`);
-  if (statusSpan) statusSpan.textContent = `✅ (${sizeKB} KB)`;
+    // Verifica si OpenCV está cargado
+    if (!cv) {
+        alert("OpenCV.js no está cargado. No se puede realizar el recorte automático.");
+        // Si OpenCV no está listo, guarda la imagen con calidad ajustada
+        // Calidad alta para "Contrato laboral", estándar para los demás
+        const imageDataURL = canvas.toDataURL("image/jpeg", currentLiveDoc === "Contrato laboral" ? 1.0 : 0.7);
+        scannedImages[currentLiveDoc] = imageDataURL;
+        document.getElementById(`preview-${currentLiveDoc}`).src = imageDataURL;
+        document.getElementById(`preview-${currentLiveDoc}`).style.display = 'block';
+        document.getElementById(`status-${currentLiveDoc}`).textContent = '⚠️'; // Indicador de que no se pudo procesar
+        return;
+    }
 
-  actualizarPesoTotal(4); // ✅ Aquí se actualiza el total acumulado en la interfaz
+    // Llama a la función de procesamiento automático
+    processImageWithOpenCV(canvas, currentLiveDoc);
+}
 
-  stream.getTracks().forEach(track => track.stop());
-  video.srcObject = null;
-  modal.hidden = true;
-}, "image/jpeg", 0.9);
 
-//////////////////////////////////////////////////////////////////////////
+function closeLiveCamera() {
+    document.getElementById("live-camera-modal").style.display = "none";
+    if (liveStream) {
+        liveStream.getTracks().forEach(track => track.stop());
+        liveStream = null;
+    }
+}
+
+function processImageWithOpenCV(canvasElement, docName) {
+    console.log("Iniciando procesamiento con OpenCV.js...");
+
+    let src = cv.imread(canvasElement); // Carga la imagen del canvas en una Mat de OpenCV
+    let dst = new cv.Mat();
+    let gray = new cv.Mat();
+    let blurred = new cv.Mat();
+    let canny = new cv.Mat();
+    let contours = new cv.MatVector();
+    let hierarchy = new cv.Mat();
+
+    try {
+        // 1. Convertir a escala de grises
+        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+
+        // 2. Aplicar un desenfoque para suavizar la imagen y reducir el ruido
+        cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0, 0, cv.BORDER_DEFAULT);
+
+        // 3. Detección de bordes con Canny
+        cv.Canny(blurred, canny, 75, 200, 3, false); // Ajustar umbrales si es necesario
+
+        // 4. Encontrar contornos
+        cv.findContours(canny, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+        let maxArea = 0;
+        let bestContour = null;
+
+        // 5. Encontrar el contorno más grande que sea aproximadamente un rectángulo de 4 puntos
+        for (let i = 0; i < contours.size(); ++i) {
+            let contour = contours.get(i);
+            let area = cv.contourArea(contour);
+            // Solo considerar contornos de un cierto tamaño mínimo para evitar ruido
+            if (area < 1000) continue;
+
+            let perimeter = cv.arcLength(contour, true);
+            let approx = new cv.Mat();
+            cv.approxPolyDP(contour, approx, 0.02 * perimeter, true);
+
+            // Si el contorno tiene 4 puntos
+            if (approx.rows === 4) {
+                if (area > maxArea) {
+                    maxArea = area;
+                    bestContour = approx;
+                }
+            }
+            approx.delete();
+        }
+
+        if (bestContour) {
+            // 6. Preparar los puntos de origen para la transformación de perspectiva
+            let points = [];
+            for (let i = 0; i < bestContour.rows; ++i) {
+                points.push({ x: bestContour.data32S[i * 2], y: bestContour.data32S[i * 2 + 1] });
+            }
+
+            // Función auxiliar para ordenar los 4 puntos (superior-izq, superior-der, inferio-der, inferior-izq)
+            function orderPoints(pts) {
+                let rect = new Array(4);
+                let s = pts.map(p => p.x + p.y);
+                let diff = pts.map(p => p.y - p.x);
+
+                rect[0] = pts[s.indexOf(Math.min(...s))]; // Top-left
+                rect[2] = pts[s.indexOf(Math.max(...s))]; // Bottom-right
+                rect[1] = pts[diff.indexOf(Math.min(...diff))]; // Top-right
+                rect[3] = pts[diff.indexOf(Math.max(...diff))]; // Bottom-left
+
+                return rect;
+            }
+
+            let orderedPts = orderPoints(points);
+            let [tl, tr, br, bl] = orderedPts;
+
+            // Calcular el ancho y alto del nuevo documento "aplanado"
+            let widthA = Math.sqrt(Math.pow(br.x - bl.x, 2) + Math.pow(br.y - bl.y, 2));
+            let widthB = Math.sqrt(Math.pow(tr.x - tl.x, 2) + Math.pow(tr.y - tl.y, 2));
+            let maxWidth = Math.max(parseInt(widthA), parseInt(widthB));
+
+            let heightA = Math.sqrt(Math.pow(tr.x - br.x, 2) + Math.pow(tr.y - br.y, 2));
+            let heightB = Math.sqrt(Math.pow(tl.x - bl.x, 2) + Math.pow(tl.y - bl.y, 2));
+            let maxHeight = Math.max(parseInt(heightA), parseInt(heightB));
+
+            // Puntos de destino para la transformación (un rectángulo perfecto)
+            let destCoords = cv.matFromArray(4, 1, cv.CV_32FC2, [
+                0, 0,
+                maxWidth - 1, 0,
+                maxWidth - 1, maxHeight - 1,
+                0, maxHeight - 1
+            ]);
+            let srcCoords = cv.matFromArray(4, 1, cv.CV_32FC2, [
+                tl.x, tl.y,
+                tr.x, tr.y,
+                br.x, br.y,
+                bl.x, bl.y
+            ]);
+
+            // 7. Realizar la transformación de perspectiva
+            let M = cv.getPerspectiveTransform(srcCoords, destCoords);
+            let dsize = new cv.Size(maxWidth, maxHeight);
+            cv.warpPerspective(src, dst, M, dsize, cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
+
+            // Limpieza de memoria
+            srcCoords.delete();
+            destCoords.delete();
+            M.delete();
+            bestContour.delete();
+
+            // 8. Opcional: Aplicar binarización si es el Contrato laboral para mejorar legibilidad de texto pequeño
+            const finalCanvas = document.createElement('canvas');
+            if (docName === "Contrato laboral") {
+                let tempGrayForBinarization = new cv.Mat();
+                let binarizedMat = new cv.Mat();
+                // Convertir 'dst' a escala de grises si no lo está ya, para la binarización
+                cv.cvtColor(dst, tempGrayForBinarization, cv.COLOR_RGBA2GRAY, 0);
+                // Aplicar Otsu's thresholding (binarización automática)
+                cv.threshold(tempGrayForBinarization, binarizedMat, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
+                cv.imshow(finalCanvas, binarizedMat); // Dibuja la Mat binarizada
+                tempGrayForBinarization.delete();
+                binarizedMat.delete();
+            } else {
+                cv.imshow(finalCanvas, dst); // Para otros documentos, solo muestra la imagen recortada
+            }
+
+            // Calidad JPEG: 1.0 para Contrato laboral, 0.7 para los demás
+            const processedDataURL = finalCanvas.toDataURL("image/jpeg", docName === "Contrato laboral" ? 1.0 : 0.7);
+
+            scannedImages[docName] = processedDataURL;
+            document.getElementById(`preview-${docName}`).src = processedDataURL;
+            document.getElementById(`preview-${docName}`).style.display = 'block';
+            document.getElementById(`status-${docName}`).textContent = '✅'; // Procesado automáticamente
+        } else {
+            console.warn("No se pudo detectar un documento rectangular. Se guardará la imagen sin procesar.");
+            alert("No se detectó un documento claro. Se guardará la imagen completa. Puedes usar la opción 'Recortar (manual)' si es necesario.");
+            // Calidad de la imagen original si no se puede procesar automáticamente
+            const originalDataURL = canvasElement.toDataURL("image/jpeg", currentLiveDoc === "Contrato laboral" ? 1.0 : 0.7);
+            scannedImages[docName] = originalDataURL;
+            document.getElementById(`preview-${docName}`).src = originalDataURL;
+            document.getElementById(`preview-${docName}`).style.display = 'block';
+            document.getElementById(`status-${docName}`).textContent = '⚠️'; // Indicador de que no se pudo procesar automáticamente
+        }
+
+    } catch (err) {
+        console.error("Error durante el procesamiento OpenCV:", err);
+        alert("Ocurrió un error al procesar la imagen automáticamente.");
+        // En caso de error, guarda la imagen original para que el usuario pueda intentar el recorte manual
+        const originalDataURL = canvasElement.toDataURL("image/jpeg", currentLiveDoc === "Contrato laboral" ? 1.0 : 0.7);
+        scannedImages[docName] = originalDataURL;
+        document.getElementById(`preview-${docName}`).src = originalDataURL;
+        document.getElementById(`preview-${docName}`).style.display = 'block';
+        document.getElementById(`status-${docName}`).textContent = '❌';
+    } finally {
+        // Asegúrate de liberar la memoria de las Mats de OpenCV
+        src.delete();
+        dst.delete();
+        gray.delete();
+        blurred.delete();
+        canny.delete();
+        contours.delete();
+        hierarchy.delete();
+    }
+}
+
+function openCrop(docName) {
+    const imageSrc = scannedImages[docName];
+    if (!imageSrc) {
+        alert("Primero escanea la imagen.");
+        return;
+    }
+
+    currentDocForCrop = docName;
+    const cropperImg = document.getElementById("cropper-image");
+
+    document.getElementById("cropper-modal").style.display = "flex";
+
+    if (cropper) {
+        cropper.destroy();
+        cropper = null;
+    }
+
+    cropperImg.src = ""; // Limpiar cualquier imagen previa para forzar el onload
+
+    cropperImg.onload = () => {
+        if (cropperImg.src) {
+            cropper = new Cropper(cropperImg, {
+                viewMode: 1,
+                autoCropArea: 0.8,
+                responsive: true,
+                background: false,
+                movable: true,
+                zoomable: true
+            });
+        }
     };
-  } catch (err) {
-    alert("🚫 Error al activar la cámara: " + err.message);
-    modal.hidden = true;
-  }
+    cropperImg.src = imageSrc;
+
+    cropperImg.onerror = () => {
+        console.error("Error cargando la imagen para recortar:", imageSrc);
+        alert("Hubo un problema cargando la imagen para recortar.");
+        closeCrop();
+    };
 }
 
-function isImageBlurry(canvas, threshold = 20) {
-  const context = canvas.getContext("2d");
-  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-  const grayValues = [];
 
-  for (let i = 0; i < imageData.data.length; i += 4) {
-    const r = imageData.data[i];
-    const g = imageData.data[i + 1];
-    const b = imageData.data[i + 2];
-    const gray = (r + g + b) / 3;
-    grayValues.push(gray);
-  }
+function confirmCrop() {
+    if (!cropper) {
+        alert("Cropper no está activo.");
+        return;
+    }
 
-  const avg = grayValues.reduce((a, b) => a + b, 0) / grayValues.length;
-  const variance = grayValues.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) / grayValues.length;
+    const canvas = cropper.getCroppedCanvas();
+    if (!canvas) {
+        alert("No se pudo obtener el área recortada.");
+        return;
+    }
 
-  return variance < threshold;
+    // Calidad JPEG al confirmar recorte manual: 1.0 para Contrato laboral, 0.7 para los demás
+    const croppedDataUrl = canvas.toDataURL("image/jpeg", currentDocForCrop === "Contrato laboral" ? 1.0 : 0.7);
+    scannedImages[currentDocForCrop] = croppedDataUrl;
+    document.getElementById(`preview-${currentDocForCrop}`).src = croppedDataUrl;
+    document.getElementById(`status-${currentDocForCrop}`).textContent = '🟩';
+    closeCrop();
 }
-function blobToDataURL(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
+
+function closeCrop() {
+    if (cropper) {
+        cropper.destroy();
+        cropper = null;
+    }
+    document.getElementById("cropper-modal").style.display = "none";
 }
-/////////////////////////////////kljkfgjbfgjk
-async function generarZipReducido(imagenes, nombreZip, maxMB = 4) {
-  const maxBytes = maxMB * 1024 * 1024;
-  const calidades = [1.0, 0.9, 0.8, 0.7];
 
-  let content;
-
-  for (const calidad of calidades) {
+async function generateZip() {
     const zip = new JSZip();
 
-    for (const [docName, blob] of Object.entries(imagenes)) {
-      const comprimida = await compressImage(blob, 1600, calidad);
+    Object.entries(scannedImages).forEach(([docName, imageData], index) => {
+        const base64 = imageData.split(',')[1];
+        zip.file(`${index + 1}_${docName}.jpg`, base64, { base64: true });
+    });
 
-      const nombre = docName.replace(/[^\w\s]/gi, "_") + ".jpg";
-      zip.file(nombre, comprimida);
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const sizeMB = blob.size / (1024 * 1024);
+
+    // Si el ZIP excede los 4MB, se muestra una advertencia
+    if (sizeMB > 4) {
+        alert(`Advertencia: El tamaño del ZIP es ${sizeMB.toFixed(2)} MB, lo cual excede los 4 MB recomendados. Esto podría deberse a la alta resolución de las imágenes.`);
+        // Puedes optar por no descargar si excede el límite si lo prefieres:
+        // return;
+    } else {
+         alert(`El ZIP pesa ${sizeMB.toFixed(2)} MB.`);
     }
 
-    content = await zip.generateAsync({ type: "blob" });
-
-    if (content.size <= maxBytes) {
-      console.log(`✅ ZIP comprimido a ${(content.size / 1024 / 1024).toFixed(4)} MB con calidad ${calidad}`);
-      return content;
-    }
-  }
-
-  console.warn("⚠️ No se pudo reducir el ZIP a menos de 2MB sin perder calidad visual.");
-  return content;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'DocumentosEscaneados.zip';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url); // Liberar el objeto URL
 }
 
-////////////////////////////////PDF
-async function generarPDFReducido(imagenes, maxMB = 4) {
-  const maxBytes = maxMB * 1024 * 1024;
-  const calidades = [0.9, 0.7, 0.5, 0.3];
-  let finalBlob;
+function generatePDFs() {
+    const { jsPDF } = window.jspdf;
 
-  for (const calidad of calidades) {
-    const pdf = new jsPDF();
+    Object.entries(scannedImages).forEach(([docName, imageData], index) => {
+        const pdf = new jsPDF();
+        const imgProps = pdf.getImageProperties(imageData);
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
 
-    const entries = Object.entries(imagenes);
-    for (let i = 0; i < entries.length; i++) {
-      const [docName, blob] = entries[i];
-      const comprimida = await compressImage(blob, 1024, calidad);
-      const imageDataUrl = await blobToDataURL(comprimida);
-
-      const imgProps = pdf.getImageProperties(imageDataUrl);
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 20;
-      const maxWidth = pageWidth - margin * 2;
-      const maxHeight = pageHeight - margin * 2 - 10;
-
-      let drawWidth = imgProps.width;
-      let drawHeight = imgProps.height;
-      const scale = Math.min(maxWidth / drawWidth, maxHeight / drawHeight);
-      drawWidth *= scale;
-      drawHeight *= scale;
-
-      const x = (pageWidth - drawWidth) / 2;
-      const y = margin + 10;
-
-      if (i > 0) pdf.addPage();
-      pdf.setFontSize(12);
-      pdf.text(docName, pageWidth / 2, margin, { align: "center" });
-      pdf.addImage(imageDataUrl, "JPEG", x, y, drawWidth, drawHeight, undefined, "FAST");
-    }
-
-    finalBlob = pdf.output("blob");
-    if (finalBlob.size <= maxBytes) {
-      console.log(`✅ PDF comprimido a ${(finalBlob.size / 1024 / 1024).toFixed(4)} MB con calidad ${calidad}`);
-      return finalBlob;
-    }
-  }
-
-  console.warn("⚠️ No se pudo reducir el PDF a menos de 2MB sin perder calidad visual.");
-  return finalBlob;
+        pdf.addImage(imageData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+        pdf.save(`${index + 1}_${docName}.pdf`);
+    });
 }
 
-
-
-async function verificarTamañoYComprimir(blob, tipo = "PDF", maxMB = 2) {
-  const maxBytes = maxMB * 1024 * 1024;
-
-  if (blob.size <= maxBytes) return blob;
-
-  const intentos = [0.7, 0.5, 0.3]; // calidad
-  let finalBlob = blob;
-
-  for (const calidad of intentos) {
-    const pdf = new jsPDF();
-    const entries = Object.entries(images);
-
-    for (let i = 0; i < entries.length; i++) {
-      const [docName, blob] = entries[i];
-      const compressed = await compressImage(blob, 700, calidad);
-      const imageDataUrl = await blobToDataURL(compressed);
-
-      const imgProps = pdf.getImageProperties(imageDataUrl);
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 20;
-      const maxWidth = pageWidth - margin * 2;
-      const maxHeight = pageHeight - margin * 2 - 10;
-
-      let drawWidth = imgProps.width;
-      let drawHeight = imgProps.height;
-
-      const scale = Math.min(maxWidth / drawWidth, maxHeight / drawHeight);
-      drawWidth *= scale;
-      drawHeight *= scale;
-
-      const x = (pageWidth - drawWidth) / 2;
-      const y = margin + 10;
-
-      if (i > 0) pdf.addPage();
-      pdf.setFontSize(12);
-      pdf.setTextColor(40);
-      pdf.text(docName, pageWidth / 2, margin, { align: "center" });
-      pdf.addImage(imageDataUrl, "JPEG", x, y, drawWidth, drawHeight, undefined, "FAST");
-    }
-
-    finalBlob = pdf.output("blob");
-
-    if (finalBlob.size <= maxBytes) {
-      console.log(`✅ PDF comprimido a ${(finalBlob.size / 1024 / 1024).toFixed(4)} MB con calidad ${calidad}`);
-      return finalBlob;
-    }
-  }
-
-  console.warn("⚠️ No se pudo reducir el PDF debajo de 2MB sin perder mucha calidad.");
-  return finalBlob;
-}
-////////////////////Funvion añadida 
-function actualizarPesoTotal(maxMB = 4) {
-  const totalBytes = Object.values(images).reduce((sum, blob) => sum + blob.size, 0);
-  const totalMB = (totalBytes / 1024 / 1024).toFixed(2);
-
-  const totalDocs = generalDocs.length + empresaDocs.length;
-  const completos = Object.keys(images).length;
-
-  const pesoBox = document.getElementById("pesoTotalBox");
-  if (pesoBox) {
-    pesoBox.textContent = `📦 Peso total actual: ${totalMB} MB / ${maxMB} MB · Documentos completos: ${completos} / ${totalDocs}`;
-    pesoBox.style.color = totalMB > maxMB ? "#b91c1c" : "#2b4c7e";
-  }
-}
-
-
-////////////////////////diseño descarga 
-function mostrarLoader() {
-  const overlay = document.createElement("div");
-  overlay.className = "loader-overlay";
-  overlay.id = "globalLoader";
-
-  const spinner = document.createElement("div");
-  spinner.className = "loader";
-
-  overlay.appendChild(spinner);
-  document.body.appendChild(overlay);
-}
-
-function ocultarLoader() {
-  const loader = document.getElementById("globalLoader");
-  if (loader) loader.remove();
-}
-}
+cropperImg.onload = null;
+cropperImg.src = "";
+setTimeout(() => {
+    cropperImg.src = imageSrc;
+    cropperImg.onload = () => {
+        cropper = new Cropper(cropperImg, {
+            viewMode: 1,
+            autoCropArea: 0.8,
+            responsive: true,
+            background: false,
+            movable: true,
+            zoomable: true
+        });
+    };
+}, 50);
