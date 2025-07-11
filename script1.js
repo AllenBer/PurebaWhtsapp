@@ -339,11 +339,13 @@ function confirmCrop() {
     }
 
     // Calidad JPEG al confirmar recorte manual: 1.0 para Contrato laboral, 0.7 para los demás
-    const croppedDataUrl = canvas.toDataURL("image/jpeg", currentDocForCrop === "Contrato laboral" ? 1.0 : 0.7);
+    const quality = currentDocForCrop === "Contrato laboral" ? 1.0 : 0.65; // Ajusta a 0.6 si necesitas aún menos tamaño
+    const croppedDataUrl = canvas.toDataURL("image/jpeg", quality);
     scannedImages[currentDocForCrop] = croppedDataUrl;
     document.getElementById(`preview-${currentDocForCrop}`).src = croppedDataUrl;
     document.getElementById(`status-${currentDocForCrop}`).textContent = '🟩';
     closeCrop();
+
 }
 
 function closeCrop() {
@@ -353,7 +355,7 @@ function closeCrop() {
     }
     document.getElementById("cropper-modal").style.display = "none";
 }
-
+/////////////////////////////////zip////////////////////////////////////////////
 async function generateZip() {
     const imss = document.getElementById('input-imss').value.trim();
     if (!imss) {
@@ -364,22 +366,35 @@ async function generateZip() {
     const fecha = getCurrentDateFormatted();
     const zip = new JSZip();
 
-    Object.entries(scannedImages).forEach(([docName, imageData], index) => {
-        const base64 = imageData.split(',')[1];
-        // Nombre archivo: IMSS_Fecha_Índice_Documento.jpg
-        zip.file(`${imss}_${fecha}_${index + 1}_${docName}.jpg`, base64, { base64: true });
-    });
+    // Clona las imágenes para no modificar las originales
+    const imagesToCompress = Object.entries(scannedImages).map(([docName, imageData]) => ({ docName, imageData }));
 
-    const blob = await zip.generateAsync({ type: 'blob' });
-    const sizeMB = blob.size / (1024 * 1024);
+    // Define calidades posibles de mayor a menor
+    const qualityLevels = [0.9, 0.8, 0.75, 0.7, 0.65, 0.6];
 
-    if (sizeMB > 4) {
-        alert(`Advertencia: El tamaño del ZIP es ${sizeMB.toFixed(2)} MB, lo cual excede los 4 MB recomendados.`);
-    } else {
-        alert(`El ZIP pesa ${sizeMB.toFixed(2)} MB.`);
+    let finalZipBlob = null;
+
+    for (let q of qualityLevels) {
+        zipFilesWithQuality(zip, imagesToCompress, q, imss, fecha);
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const sizeMB = blob.size / (1024 * 1024);
+
+        console.log(`🧪 Probando calidad: ${q} ➜ ZIP = ${sizeMB.toFixed(2)} MB`);
+
+        if (sizeMB <= 4) {
+            finalZipBlob = blob;
+            break; // Salimos con la mejor calidad posible bajo 4MB
+        }
+
+        zip.files = {}; // Limpiar ZIP para siguiente intento
     }
 
-    const url = URL.createObjectURL(blob);
+    if (!finalZipBlob) {
+        alert("❌ No se pudo generar un ZIP debajo de 4MB, incluso con compresión máxima.");
+        return;
+    }
+
+    const url = URL.createObjectURL(finalZipBlob);
     const link = document.createElement('a');
     link.href = url;
     link.download = `Documentos_${imss}_${fecha}.zip`;
@@ -389,34 +404,80 @@ async function generateZip() {
     URL.revokeObjectURL(url);
 }
 
-function generatePDFs() {
+
+//////////////////////////////////////////pdf////////////////////////////////////////////
+async function generateOptimizedPDF() {
     const { jsPDF } = window.jspdf;
     const imss = document.getElementById('input-imss').value.trim();
-
     if (!imss) {
-        alert("Por favor, ingresa el Número de IMSS antes de generar los PDFs.");
+        alert("Por favor, ingresa el Número de IMSS antes de generar el PDF.");
         return;
     }
 
     const fecha = getCurrentDateFormatted();
-    const pdf = new jsPDF();
+    const qualityLevels = [0.9, 0.8, 0.75, 0.7, 0.65, 0.6]; // De mejor a menor calidad
+    let finalPdfBlob = null;
 
-    const entries = Object.entries(scannedImages);
+    for (let quality of qualityLevels) {
+        const pdf = new jsPDF();
+        const entries = Object.entries(scannedImages);
 
-    entries.forEach(([docName, imageData], index) => {
-        if (index > 0) {
-            pdf.addPage(); // Agregar nueva página para cada imagen excepto la primera
+        for (let i = 0; i < entries.length; i++) {
+            const [docName, imageData] = entries[i];
+
+            // Comprimir la imagen si no es "Contrato laboral"
+            const finalDataUrl = await compressImage(imageData, docName === "Contrato laboral" ? 1.0 : quality);
+
+            const imgProps = pdf.getImageProperties(finalDataUrl);
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+            if (i > 0) pdf.addPage();
+            pdf.addImage(finalDataUrl, 'JPEG', 0, 0, pdfWidth, pdfHeight);
         }
 
-        const imgProps = pdf.getImageProperties(imageData);
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+        const blob = pdf.output('blob');
+        const sizeMB = blob.size / (1024 * 1024);
+        console.log(`🧪 Calidad ${quality} ➜ PDF: ${sizeMB.toFixed(2)} MB`);
 
-        pdf.addImage(imageData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
-    });
+        if (sizeMB <= 4) {
+            finalPdfBlob = blob;
+            break;
+        }
+    }
 
-    pdf.save(`${imss}_${fecha}_Documentos.pdf`);
+    if (!finalPdfBlob) {
+        alert("❌ No se pudo generar un PDF debajo de 4MB, incluso con compresión máxima.");
+        return;
+    }
+
+    const url = URL.createObjectURL(finalPdfBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${imss}_${fecha}_Documentos.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
 }
+////////////////////////////////////////////////////////////////
+function compressImage(dataURL, quality) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            const compressedDataUrl = canvas.toDataURL("image/jpeg", quality);
+            resolve(compressedDataUrl);
+        };
+        img.src = dataURL;
+    });
+}
+
+
 
 
 // Función auxiliar para obtener fecha formateada
@@ -444,3 +505,38 @@ setTimeout(() => {
         });
     };
 }, 50);
+function zipFilesWithQuality(zip, images, quality, imss, fecha) {
+    images.forEach(({ docName, imageData }, index) => {
+        // No modificar el "Contrato laboral", siempre calidad 1.0
+        const isContrato = docName === "Contrato laboral";
+        const img = new Image();
+        img.src = imageData;
+
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        const finalQuality = isContrato ? 1.0 : quality;
+        const compressed = canvas.toDataURL("image/jpeg", finalQuality);
+        const base64 = compressed.split(",")[1];
+
+        zip.file(`${imss}_${fecha}_${index + 1}_${docName}.jpg`, base64, { base64: true });
+    });
+}
+function compressImage(dataURL, quality) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            const compressedDataUrl = canvas.toDataURL("image/jpeg", quality);
+            resolve(compressedDataUrl);
+        };
+        img.src = dataURL;
+    });
+}
