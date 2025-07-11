@@ -4,7 +4,456 @@ const generalDocs = [
   "Credencial de elector (Reverso)","Guía de entrevista", "Carta de identidad (solo menores)"
 ];
 
+const empresaDocs = [const generalDocs = [
+  "Formato de alta", "Solicitud de empleo", "Copia del acta de nacimiento", "Número de IMSS", "CURP",
+  "Copia de comprobante de estudios", "Copia de comprobante de domicilio", "Credencial de elector (Frente)",
+  "Credencial de elector (Reverso)","Guía de entrevista", "Carta de identidad (solo menores)"
+];
+
 const empresaDocs = [
+  "Permiso firmado por tutor", "Identificación oficial tutor", "Carta responsiva", "Políticas de la empresa",
+  "Políticas de propina", "Convenio de manipulaciones", "Convenio de correo electrónico", "Vale de uniforme",
+  "Apertura de cuentas", "Contrato laboral", "Responsiva tarjeta de nómina", "Cuenta Santander"
+];
+
+window.jsPDF = window.jspdf?.jsPDF || window.jsPDF;
+
+const CLIENT_ID = '447789838113-076qo17ps0bercefg0ln9kiokt9bodtv.apps.googleusercontent.com';
+const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+let authInstance;
+const images = {};
+let zipBlob = null;
+let lastCapturedBlob = null;
+let cropper = null;
+
+
+function compressImage(blob, maxWidth = 700, quality = 0.8) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / img.width);
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((compressedBlob) => {
+        resolve(compressedBlob);
+        URL.revokeObjectURL(url);
+      }, "image/jpeg", quality);
+    };
+    img.src = url;
+  });
+}
+
+function renderList(docs, containerId) {
+  const ul = document.getElementById(containerId);
+ docs.forEach((doc, idx) => {
+  const safeId = doc.replace(/[^ -\u007F]+|[^\w\s]/gi, '').replace(/\s+/g, "_") + "_" + idx;
+
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <span class="doc-label">${doc}</span>
+      <span class="doc-status" id="status-${safeId}">❌</span>
+      <button onclick="openCamera('${doc}')">📷 Escanear</button>
+    `;
+    ul.appendChild(li);
+  });
+}
+
+// 🧮 Crea indicador visual para el peso total acumulado
+const pesoTotalBox = document.createElement("div");
+pesoTotalBox.style = "margin-top:1rem;font-weight:500;color:#2b4c7e;background:#eef2f7;padding:0.8rem;border-radius:8px;";
+pesoTotalBox.id = "pesoTotalBox";
+pesoTotalBox.textContent = "📦 Peso total actual: 0.0 MB / 4 MB";
+document.querySelector(".zip-controls").appendChild(pesoTotalBox);
+
+window.onload = () => {
+  renderList(generalDocs, "doc-general");
+  renderList(empresaDocs, "doc-empresa");
+
+document.getElementById("generateZip").onclick = async () => {
+  const baseName = document.getElementById("zipName").value.trim();
+  if (!baseName) return alert("⚠️ Ingresa un nombre para el ZIP");
+  if (Object.keys(images).length === 0) return alert("⚠️ No hay imágenes para generar el ZIP.");
+
+  mostrarLoader(); // 🌀 Muestra el spinner justo antes de iniciar el proceso
+
+  try {
+    const fecha = new Date().toISOString().slice(0, 10);
+    const zipName = `${baseName}_${fecha}`;
+
+    zipBlob = await generarZipReducido(images, zipName, 4); // ahora acepta hasta 4MB
+
+    if (!zipBlob) {
+      alert("❌ Error al generar el ZIP.");
+      return;
+    }
+
+    const blobURL = URL.createObjectURL(zipBlob);
+    document.zipBlobURL = blobURL;
+    document.generatedZipName = zipName;
+
+    const a = document.createElement("a");
+    a.href = blobURL;
+    a.download = zipName + ".zip";
+    a.click();
+
+    alert("✅ ZIP generado y descargado.");
+  } catch (err) {
+    console.error("❌ Error al generar el ZIP:", err);
+    alert("❌ Ocurrió un error. Revisa la consola.");
+  } finally {
+    ocultarLoader(); // ✅ Oculta el spinner sin importar si falló o tuvo éxito
+  }
+};
+
+document.getElementById("downloadPDF").onclick = async () => {
+  const statusBox = document.createElement("div");
+  statusBox.style = "position:fixed;bottom:1rem;right:1rem;background:#fff;border:2px solid #333;padding:1rem;z-index:9999;font-family:monospace;";
+  statusBox.innerText = "⏳ Generando PDF...";
+  document.body.appendChild(statusBox);
+
+  mostrarLoader(); // 🌀 Spinner activo
+
+  try {
+    if (typeof jsPDF !== "function") {
+      statusBox.innerText = "❌ jsPDF no está disponible.";
+      return;
+    }
+
+    if (!zipBlob) {
+      statusBox.innerText = "⚠️ Primero genera el ZIP antes de descargar el PDF.";
+      return;
+    }
+
+    const finalPDFBlob = await generarPDFReducido(images, 4); // ✅ Comprime a 4MB máximo
+
+    const nombre = document.getElementById("zipName").value.trim() || "documentos";
+    const fecha = new Date().toISOString().slice(0, 10);
+    const fileName = `${nombre}_${fecha}.pdf`;
+
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(finalPDFBlob);
+    a.download = fileName;
+    a.click();
+
+    statusBox.innerText = `✅ PDF generado: ${fileName}`;
+  } catch (err) {
+    console.error("❌ Error al generar el PDF:", err);
+    statusBox.innerText = "❌ Error al generar el PDF. Revisa la consola.";
+  } finally {
+    ocultarLoader(); // ✅ Oculta spinner
+    setTimeout(() => statusBox.remove(), 8000); // ✅ Limpia mensaje
+  }
+};
+
+async function openCamera(docName) {
+  const video = document.getElementById("camera");
+  const modal = document.getElementById("cameraModal");
+  const label = document.getElementById("docLabel");
+  const canvas = document.getElementById("snapshotCanvas");
+
+  label.textContent = `📄 Escaneando: ${docName}`;
+  modal.hidden = false;
+  modal.style.display = "flex";
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: "environment",
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      }
+    });
+
+    video.srcObject = stream;
+
+    const oldBtn = document.getElementById("captureBtn");
+    const newBtn = oldBtn.cloneNode(true);
+    newBtn.id = "captureBtn";
+    oldBtn.replaceWith(newBtn);
+
+    newBtn.onclick = () => {
+      const context = canvas.getContext("2d");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(async (blob) => {
+  if (isImageBlurry(canvas)) {
+    alert("⚠️ La imagen parece borrosa. Toma la foto nuevamente.");
+    return;
+  }
+
+  lastCapturedBlob = blob;
+
+  // Mostrar imagen capturada
+  const imgElement = document.getElementById("previewImage");
+  imgElement.src = URL.createObjectURL(blob);
+  imgElement.style.display = "block";
+
+  // Habilitar botón de recorte
+  document.getElementById("cropBtn").disabled = false;
+
+  // Guardar el nombre del documento para luego asociarlo
+  imgElement.dataset.docName = docName;
+}, "image/jpeg", 0.9);
+
+//////////////////////////////////////////////////////////////////////////
+    };
+  } catch (err) {
+    alert("🚫 Error al activar la cámara: " + err.message);
+    modal.hidden = true;
+  }
+}
+/////////////////////////////////////nueva funcion 
+document.getElementById("cropBtn").addEventListener("click", () => {
+  const imgElement = document.getElementById("previewImage");
+
+  if (cropper) cropper.destroy();
+
+  cropper = new Cropper(imgElement, {
+    viewMode: 1,
+    autoCropArea: 1,
+    movable: true,
+    zoomable: true,
+    scalable: true,
+    cropBoxResizable: true,
+  });
+
+  document.getElementById("saveCroppedBtn").hidden = false;
+});
+
+
+function isImageBlurry(canvas, threshold = 20) {
+  const context = canvas.getContext("2d");
+  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+  const grayValues = [];
+
+  for (let i = 0; i < imageData.data.length; i += 4) {
+    const r = imageData.data[i];
+    const g = imageData.data[i + 1];
+    const b = imageData.data[i + 2];
+    const gray = (r + g + b) / 3;
+    grayValues.push(gray);
+  }
+
+  const avg = grayValues.reduce((a, b) => a + b, 0) / grayValues.length;
+  const variance = grayValues.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) / grayValues.length;
+
+  return variance < threshold;
+}
+function blobToDataURL(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+/////////////////////////////////kljkfgjbfgjk
+async function generarZipReducido(imagenes, nombreZip, maxMB = 4) {
+  const maxBytes = maxMB * 1024 * 1024;
+  const calidades = [1.0, 0.9, 0.8, 0.7];
+
+  let content;
+
+  for (const calidad of calidades) {
+    const zip = new JSZip();
+
+    for (const [docName, blob] of Object.entries(imagenes)) {
+      const comprimida = await compressImage(blob, 1600, calidad);
+
+      const nombre = docName.replace(/[^\w\s]/gi, "_") + ".jpg";
+      zip.file(nombre, comprimida);
+    }
+
+    content = await zip.generateAsync({ type: "blob" });
+
+    if (content.size <= maxBytes) {
+      console.log(`✅ ZIP comprimido a ${(content.size / 1024 / 1024).toFixed(4)} MB con calidad ${calidad}`);
+      return content;
+    }
+  }
+
+  console.warn("⚠️ No se pudo reducir el ZIP a menos de 2MB sin perder calidad visual.");
+  return content;
+}
+
+////////////////////////////////PDF
+async function generarPDFReducido(imagenes, maxMB = 4) {
+  const maxBytes = maxMB * 1024 * 1024;
+  const calidades = [0.9, 0.7, 0.5, 0.3];
+  let finalBlob;
+
+  for (const calidad of calidades) {
+    const pdf = new jsPDF();
+
+    const entries = Object.entries(imagenes);
+    for (let i = 0; i < entries.length; i++) {
+      const [docName, blob] = entries[i];
+      const comprimida = await compressImage(blob, 1024, calidad);
+      const imageDataUrl = await blobToDataURL(comprimida);
+
+      const imgProps = pdf.getImageProperties(imageDataUrl);
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 20;
+      const maxWidth = pageWidth - margin * 2;
+      const maxHeight = pageHeight - margin * 2 - 10;
+
+      let drawWidth = imgProps.width;
+      let drawHeight = imgProps.height;
+      const scale = Math.min(maxWidth / drawWidth, maxHeight / drawHeight);
+      drawWidth *= scale;
+      drawHeight *= scale;
+
+      const x = (pageWidth - drawWidth) / 2;
+      const y = margin + 10;
+
+      if (i > 0) pdf.addPage();
+      pdf.setFontSize(12);
+      pdf.text(docName, pageWidth / 2, margin, { align: "center" });
+      pdf.addImage(imageDataUrl, "JPEG", x, y, drawWidth, drawHeight, undefined, "FAST");
+    }
+
+    finalBlob = pdf.output("blob");
+    if (finalBlob.size <= maxBytes) {
+      console.log(`✅ PDF comprimido a ${(finalBlob.size / 1024 / 1024).toFixed(4)} MB con calidad ${calidad}`);
+      return finalBlob;
+    }
+  }
+
+  console.warn("⚠️ No se pudo reducir el PDF a menos de 2MB sin perder calidad visual.");
+  return finalBlob;
+}
+
+
+
+async function verificarTamañoYComprimir(blob, tipo = "PDF", maxMB = 2) {
+  const maxBytes = maxMB * 1024 * 1024;
+
+  if (blob.size <= maxBytes) return blob;
+
+  const intentos = [0.7, 0.5, 0.3]; // calidad
+  let finalBlob = blob;
+
+  for (const calidad of intentos) {
+    const pdf = new jsPDF();
+    const entries = Object.entries(images);
+
+    for (let i = 0; i < entries.length; i++) {
+      const [docName, blob] = entries[i];
+      const compressed = await compressImage(blob, 700, calidad);
+      const imageDataUrl = await blobToDataURL(compressed);
+
+      const imgProps = pdf.getImageProperties(imageDataUrl);
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 20;
+      const maxWidth = pageWidth - margin * 2;
+      const maxHeight = pageHeight - margin * 2 - 10;
+
+      let drawWidth = imgProps.width;
+      let drawHeight = imgProps.height;
+
+      const scale = Math.min(maxWidth / drawWidth, maxHeight / drawHeight);
+      drawWidth *= scale;
+      drawHeight *= scale;
+
+      const x = (pageWidth - drawWidth) / 2;
+      const y = margin + 10;
+
+      if (i > 0) pdf.addPage();
+      pdf.setFontSize(12);
+      pdf.setTextColor(40);
+      pdf.text(docName, pageWidth / 2, margin, { align: "center" });
+      pdf.addImage(imageDataUrl, "JPEG", x, y, drawWidth, drawHeight, undefined, "FAST");
+    }
+
+    finalBlob = pdf.output("blob");
+
+    if (finalBlob.size <= maxBytes) {
+      console.log(`✅ PDF comprimido a ${(finalBlob.size / 1024 / 1024).toFixed(4)} MB con calidad ${calidad}`);
+      return finalBlob;
+    }
+  }
+
+  console.warn("⚠️ No se pudo reducir el PDF debajo de 2MB sin perder mucha calidad.");
+  return finalBlob;
+}
+////////////////////Funvion añadida 
+function actualizarPesoTotal(maxMB = 4) {
+  const totalBytes = Object.values(images).reduce((sum, blob) => sum + blob.size, 0);
+  const totalMB = (totalBytes / 1024 / 1024).toFixed(2);
+
+  const totalDocs = generalDocs.length + empresaDocs.length;
+  const completos = Object.keys(images).length;
+
+  const pesoBox = document.getElementById("pesoTotalBox");
+  if (pesoBox) {
+    pesoBox.textContent = `📦 Peso total actual: ${totalMB} MB / ${maxMB} MB · Documentos completos: ${completos} / ${totalDocs}`;
+    pesoBox.style.color = totalMB > maxMB ? "#b91c1c" : "#2b4c7e";
+  }
+}
+
+
+////////////////////////diseño descarga 
+function mostrarLoader() {
+  const overlay = document.createElement("div");
+  overlay.className = "loader-overlay";
+  overlay.id = "globalLoader";
+
+  const spinner = document.createElement("div");
+  spinner.className = "loader";
+
+  overlay.appendChild(spinner);
+  document.body.appendChild(overlay);
+}
+
+function ocultarLoader() {
+  const loader = document.getElementById("globalLoader");
+  if (loader) loader.remove();
+}
+}
+
+//////////////////////////////////imagen recortada
+document.getElementById("saveCroppedBtn").addEventListener("click", async () => {
+  if (!cropper) return;
+
+  const canvas = cropper.getCroppedCanvas({ maxWidth: 1600 });
+  canvas.toBlob(async (croppedBlob) => {
+    const docName = document.getElementById("previewImage").dataset.docName;
+
+    const compressed = await compressImage(croppedBlob);
+    images[docName] = compressed;
+
+    const sizeKB = (compressed.size / 1024).toFixed(1);
+    const safeId = docName.replace(/[^ -\u007F]+|[^\w\s]/gi, '').replace(/\s+/g, "_");
+    const statusSpan = document.getElementById(`status-${safeId}`);
+    if (statusSpan) statusSpan.textContent = `✅ (${sizeKB} KB)`;
+
+    actualizarPesoTotal(4);
+
+    cropper.destroy();
+    cropper = null;
+
+    document.getElementById("previewImage").style.display = "none";
+    document.getElementById("saveCroppedBtn").hidden = true;
+    document.getElementById("cropBtn").disabled = true;
+
+    // Ocultar cámara y detener stream
+    const video = document.getElementById("camera");
+    const modal = document.getElementById("cameraModal");
+    if (video.srcObject) {
+      video.srcObject.getTracks().forEach(track => track.stop());
+      video.srcObject = null;
+    }
+    modal.hidden = true;
+  }, "image/jpeg", 0.9);
+});
+
   "Permiso firmado por tutor", "Identificación oficial tutor", "Carta responsiva", "Políticas de la empresa",
   "Políticas de propina", "Convenio de manipulaciones", "Convenio de correo electrónico", "Vale de uniforme",
   "Apertura de cuentas", "Contrato laboral", "Responsiva tarjeta de nómina", "Cuenta Santander"
