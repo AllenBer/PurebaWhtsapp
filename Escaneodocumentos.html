@@ -38,17 +38,18 @@
   </div>
 
  <div class="camera-modal" id="cameraModal" hidden>
-  <h3 id="docLabel">Escanear documento</h3>
+  <h3 id="docLabel">📷 Escanear documento</h3>
+
   <video id="camera" autoplay playsinline></video>
 
-  <div class="camera-modal-controls">
+  <div class="camera-modal-controls" style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem;">
     <button id="captureBtn">📸 Tomar Foto</button>
     <button id="cropBtn" disabled>✂️ Recortar Foto</button>
     <button id="saveCroppedBtn" hidden>💾 Guardar Recorte</button>
     <button id="minimizeCamera" class="min-btn">🔽 Minimizar</button>
   </div>
 
-  <!-- Canvas oculto para capturar la imagen -->
+  <!-- Canvas oculto para capturar imagen -->
   <canvas id="snapshotCanvas" hidden></canvas>
 
   <!-- Imagen para vista previa y recorte -->
@@ -56,6 +57,7 @@
     <img id="previewImage" style="max-width: 100%; display: none;" />
   </div>
 </div>
+
 
 <!-- Cropper.js -->
 <link href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" rel="stylesheet" />
