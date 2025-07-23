@@ -13,6 +13,9 @@ let currentDocForCrop = null;
 let currentLiveDoc = null;
 let liveStream = null;
 let cv = null; // Variable para la instancia de OpenCV
+// script1.js
+const { jsPDF } = window.jspdf; // <--- PON ESTO AL INICIO
+
 
 // Esta función se llama cuando OpenCV.js ha terminado de cargar
 function onOpenCvReady() {
@@ -379,12 +382,50 @@ async function generateZip() {
 
     const fecha = getCurrentDateFormatted();
     const zip = new JSZip();
+    const pdfPromises = [];
 
-    Object.entries(scannedImages).forEach(([docName, imageData], index) => {
-        const base64 = imageData.split(",")[1]; // Extrae datos sin encabezado
-        zip.file(`${imss}_${fecha}_${index + 1}_${docName}.jpg`, base64, { base64: true });
-    });
+    let index = 1;
 
+    for (const [docName, imageData] of Object.entries(scannedImages)) {
+        const promise = new Promise((resolve) => {
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'px',
+                format: 'a4'
+            });
+
+            const img = new Image();
+            img.onload = function () {
+                const pageWidth = pdf.internal.pageSize.getWidth();
+                const pageHeight = pdf.internal.pageSize.getHeight();
+
+                // Ajuste para mantener proporciones
+                let imgWidth = img.width;
+                let imgHeight = img.height;
+                const scale = Math.min(pageWidth / imgWidth, pageHeight / imgHeight);
+
+                imgWidth *= scale;
+                imgHeight *= scale;
+
+                const x = (pageWidth - imgWidth) / 2;
+                const y = (pageHeight - imgHeight) / 2;
+
+                pdf.addImage(img, 'JPEG', x, y, imgWidth, imgHeight);
+                pdfOutput = pdf.output('blob');
+
+                zip.file(`${imss}_${fecha}_${index++}_${docName}.pdf`, pdfOutput);
+                resolve();
+            };
+            img.src = imageData;
+        });
+
+        pdfPromises.push(promise);
+    }
+
+    // Espera a que todos los PDFs se hayan generado
+    await Promise.all(pdfPromises);
+
+    // Ahora genera el ZIP final
     const blob = await zip.generateAsync({ type: 'blob' });
 
     const url = URL.createObjectURL(blob);
@@ -396,7 +437,6 @@ async function generateZip() {
     link.remove();
     URL.revokeObjectURL(url);
 }
-
 
 
 //////////////////////////////////////////pdf////////////////////////////////////////////
